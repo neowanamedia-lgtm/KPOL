@@ -1,0 +1,78 @@
+-- KPOL 배치 잡 스케줄 — pg_cron 등록.
+-- 적용 시점: Supabase 프로젝트 + Edge Functions 배포 + 인증키 환경변수 설정 이후.
+-- 현재 단계에서는 적용하지 않는다.
+
+-- TODO(supabase):
+--   1. Supabase Dashboard > Database > Extensions에서 pg_cron 활성화
+--   2. pg_net 활성화 (Edge Function HTTP 호출용)
+--   3. service_role 키를 vault에 저장
+--   4. 아래 cron.schedule 블록 활성화
+
+-- create extension if not exists pg_cron;
+-- create extension if not exists pg_net;
+
+-- ── J1 profile_sync — 매주 월 03:00 KST (= 18:00 UTC 일요일) ───────────
+-- select cron.schedule(
+--   'kpol_j1_profile_sync',
+--   '0 18 * * 0',
+--   $$
+--   select net.http_post(
+--     url := 'https://<project-ref>.functions.supabase.co/profile_sync',
+--     headers := jsonb_build_object(
+--       'Authorization', 'Bearer ' || vault.get_secret('supabase_service_role_key'),
+--       'x-triggered-by', 'cron'
+--     )
+--   );
+--   $$
+-- );
+
+-- ── J2 news_ingest — 6시간마다 (00, 06, 12, 18 UTC) ─────────────────────
+-- select cron.schedule(
+--   'kpol_j2_news_ingest',
+--   '0 */6 * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<project-ref>.functions.supabase.co/news_ingest',
+--     headers := jsonb_build_object(
+--       'Authorization', 'Bearer ' || vault.get_secret('supabase_service_role_key'),
+--       'x-triggered-by', 'cron'
+--     )
+--   );
+--   $$
+-- );
+
+-- ── J3 mapping_engine — J2 직후 (15분 지연) ─────────────────────────────
+-- select cron.schedule(
+--   'kpol_j3_mapping',
+--   '15 */6 * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<project-ref>.functions.supabase.co/mapping_engine',
+--     headers := jsonb_build_object(
+--       'Authorization', 'Bearer ' || vault.get_secret('supabase_service_role_key'),
+--       'x-triggered-by', 'cron'
+--     )
+--   );
+--   $$
+-- );
+
+-- ── J4 aggregate_and_rank — 매일 03:00 KST (= 18:00 UTC) ────────────────
+-- select cron.schedule(
+--   'kpol_j4_aggregate',
+--   '0 18 * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<project-ref>.functions.supabase.co/aggregate_and_rank',
+--     headers := jsonb_build_object(
+--       'Authorization', 'Bearer ' || vault.get_secret('supabase_service_role_key'),
+--       'x-triggered-by', 'cron'
+--     )
+--   );
+--   $$
+-- );
+
+-- ── 고도화 단계 전환: J2를 1시간마다로 변경 ─────────────────────────────
+-- select cron.alter_job(
+--   job_id := (select jobid from cron.job where jobname = 'kpol_j2_news_ingest'),
+--   schedule := '0 * * * *'
+-- );

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:open.assembly.go.kr)",
+      "WebFetch(domain:www.data.go.kr)",
+      "WebFetch(domain:swknu.kongju.ac.kr)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
