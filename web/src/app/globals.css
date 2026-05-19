@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────
+   KPOL theme tokens.
+   Defaults are Night. Day mode is opted-in via data-theme="day".
+   Text scale steps via data-scale="0|1|2|3" on <html>.
+   Brand color is a single token — replace --kpol-brand value
+   when DulSai-aligned palette arrives.
+   ───────────────────────────────────────────────────────────── */
+
+:root,
+:root[data-theme="night"] {
+  --kpol-bg-base: #0b0d10;
+  --kpol-bg-elev: #14171c;
+  --kpol-bg-sticky: #0f1216;
+  --kpol-border: #1f242c;
+  --kpol-border-strong: #2a313b;
+
+  --kpol-text-1: #e7ecf1;
+  --kpol-text-2: #a9b2bd;
+  --kpol-text-3: #6b7682;
+
+  /* Brand placeholder — DulSai 자산 도착 시 한 줄만 교체.
+     진한 와인/크림슨 톤 (밀도감, 흐릿함 회피). */
+  --kpol-brand: #b8344a;
+  --kpol-brand-strong: #9c2a3d;
+
+  /* 액션 강조 초록 — '산정 기준' 텍스트 + 변동 없음 신호 공통. */
+  --kpol-accent-green: #2cbf7d;
+
+  /* Signal — 한국 증시 관습 (적 상승, 청 하락, 녹 변동없음).
+     채도 낮춰 정당 진영색과 구분. */
+  --kpol-signal-up: #e0524d;
+  --kpol-signal-down: #4d8de0;
+  /* 변동 없음 — 진한 초록 (accent-green과 공유). */
+  --kpol-signal-flat: var(--kpol-accent-green);
+}
+
+:root[data-theme="day"] {
+  --kpol-bg-base: #f6f7f9;
+  --kpol-bg-elev: #ffffff;
+  --kpol-bg-sticky: #ffffff;
+  --kpol-border: #e3e7ec;
+  --kpol-border-strong: #c5ccd5;
+
+  --kpol-text-1: #15181c;
+  --kpol-text-2: #4a525c;
+  --kpol-text-3: #8a929c;
+
+  --kpol-brand: #9c2a3d;
+  --kpol-brand-strong: #821f30;
+
+  --kpol-accent-green: #1ea76a;
+
+  --kpol-signal-up: #c54239;
+  --kpol-signal-down: #2563c7;
+  --kpol-signal-flat: var(--kpol-accent-green);
+}
+
+/* Text scale (4단계: 기본 / +1 / +2 / +3) */
+:root,
+:root[data-scale="0"] { --kpol-scale: 1; }
+:root[data-scale="1"] { --kpol-scale: 1.12; }
+:root[data-scale="2"] { --kpol-scale: 1.24; }
+:root[data-scale="3"] { --kpol-scale: 1.36; }
+
+@theme inline {
+  --color-bg: var(--kpol-bg-base);
+  --color-elev: var(--kpol-bg-elev);
+  --color-sticky: var(--kpol-bg-sticky);
+  --color-border: var(--kpol-border);
+  --color-border-strong: var(--kpol-border-strong);
+  --color-fg: var(--kpol-text-1);
+  --color-fg-muted: var(--kpol-text-2);
+  --color-fg-dim: var(--kpol-text-3);
+  --color-brand: var(--kpol-brand);
+  --color-brand-strong: var(--kpol-brand-strong);
+  --color-signal-up: var(--kpol-signal-up);
+  --color-signal-down: var(--kpol-signal-down);
+  --color-signal-flat: var(--kpol-signal-flat);
+  --color-accent-green: var(--kpol-accent-green);
+}
+
+html,
+body {
+  background: var(--kpol-bg-base);
+  color: var(--kpol-text-1);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-family:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", "Apple SD Gothic Neo",
+    "Noto Sans KR", sans-serif;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+}
+
+/* Hide horizontal scrollbar on tab strip while keeping scroll. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Portrait-only enforcement (CSS-only, JS unnecessary).
+   PWA orientation: portrait는 standalone에서만 효과 → 일반 브라우저
+   세션에서는 안내 화면으로 우회. [[kpol-portrait-only]]
+   ────────────────────────────────────────────────────────────── */
+.kpol-landscape-guard { display: none; }
+
+/* 모바일·태블릿 가로 모두 잡기 위해 폭 1024px 이하 + landscape 조건.
+   데스크탑 와이드(1025px+)는 모바일 셸 그대로 렌더(가로 안내 ✗). */
+@media (orientation: landscape) and (max-width: 1024px) {
+  .kpol-portrait-shell { display: none !important; }
+  .kpol-landscape-guard {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    inset: 0;
+    background: var(--kpol-bg-base);
+    color: var(--kpol-text-1);
+    z-index: 100;
+    padding: 1rem;
+  }
+}
+
+/* Text utilities — split into FIXED (shell chrome / settings UI) and
+   SCALE-AWARE (list area only). 사용자의 글자 크기 설정은 리스트만 움직임. */
+
+/* FIXED — 상단 로고/탭/산정기준띄, 하단 아이콘, 설정 패널, DEMO 라벨. */
+/* 로고 두 단어 모두 동일 utility 사용 — 시각·수치 모두 통일. */
+@utility kpol-text-brand { font-size: 30px; line-height: 1; letter-spacing: 0.01em; }
+@utility kpol-text-tab          { font-size: 15px; line-height: 1.2; }
+@utility kpol-text-basis        { font-size: 13px; line-height: 1.2; }
+@utility kpol-text-label-xs     { font-size: 11px; line-height: 1.2; }
+
+/* SCALE-AWARE — 중앙 리스트 영역 텍스트만. */
+@utility kpol-text-rank    { font-size: calc(13px * var(--kpol-scale)); line-height: 1.2; }
+@utility kpol-text-name    { font-size: calc(15px * var(--kpol-scale)); line-height: 1.2; }
+@utility kpol-text-meta    { font-size: calc(13px * var(--kpol-scale)); line-height: 1.2; }
+@utility kpol-text-signal  { font-size: calc(13px * var(--kpol-scale)); line-height: 1.2; }
+@utility kpol-text-detail  { font-size: calc(13px * var(--kpol-scale)); line-height: 1.4; }
+@utility kpol-text-list-xs { font-size: calc(11px * var(--kpol-scale)); line-height: 1.2; }
+
+/* Row padding scales together so 'scale +3' doesn't make rows
+   cramped or text-clip. (리스트 행에만 사용) */
+@utility kpol-row-pad {
+  padding-top: calc(6px * var(--kpol-scale));
+  padding-bottom: calc(6px * var(--kpol-scale));
+}
