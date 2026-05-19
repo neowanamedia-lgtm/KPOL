@@ -37,24 +37,27 @@
 }
 
 :root[data-theme="day"] {
-  /* 뉴트럴 오프화이트 — 노란기·채도 낮춤, 종이감만 살짝. 눈 피로 낮게. */
-  --kpol-bg-base: #ecebe6;
-  --kpol-bg-elev: #e3e1da;
-  --kpol-bg-sticky: #ecebe6;
-  --kpol-border: #d1cfc8;
-  --kpol-border-strong: #b6b3ac;
+  /* 배경 — 순수 흰색 */
+  --kpol-bg-base: #ffffff;
+  --kpol-bg-elev: #f4f4f4;
+  --kpol-bg-sticky: #ffffff;
+  --kpol-border: #e5e5e5;
+  --kpol-border-strong: #c0c0c0;
 
-  --kpol-text-1: #1f1e1c;
-  --kpol-text-2: #4d4a45;
-  --kpol-text-3: #7d7a74;
+  /* 텍스트 — 흰 배경 대비 진하게 */
+  --kpol-text-1: #0a0a0a;
+  --kpol-text-2: #4a4a4a;
+  --kpol-text-3: #7a7a7a;
 
-  --kpol-brand: #9c2a3d;
-  --kpol-brand-strong: #7e1f30;
+  /* Brand·신호 색 — Day 전용 강화 톤.
+     흰 배경에서도 또렷하게 보이도록 명도 낮춤 + 채도 유지. */
+  --kpol-brand: #a51e36;
+  --kpol-brand-strong: #871528;
 
-  --kpol-accent-green: #167a4f;
+  --kpol-accent-green: #0fae6a;
 
-  --kpol-signal-up: #b8362c;
-  --kpol-signal-down: #1f56b8;
+  --kpol-signal-up: #d8332b;
+  --kpol-signal-down: #1a5fd1;
   --kpol-signal-flat: var(--kpol-accent-green);
 }
 
@@ -88,6 +91,13 @@ body {
   color: var(--kpol-text-1);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+}
+
+/* Day 모드는 subpixel 렌더링으로 텍스트가 더 또렷·굵게 보이게.
+   antialiased는 다크 배경엔 좋지만 밝은 배경엔 글자를 흐려 보이게 함. */
+:root[data-theme="day"] body {
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
 }
 
 body {
