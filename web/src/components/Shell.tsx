@@ -3,14 +3,37 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PersonRow } from "@/components/PersonRow";
 import { PersonDetail } from "@/components/PersonDetail";
-import { Settings, type Scale, type Theme } from "@/components/Settings";
 import { BasisExplainer } from "@/components/BasisExplainer";
+import { fireEvent, type CategoryTarget } from "@/lib/analytics";
 import {
-  ArrowUpIcon,
-  SearchIcon,
-  SettingsIcon,
+  MinusIcon,
+  MoonIconFilled,
+  PlusIcon,
+  ShareIcon,
+  SunIcon,
 } from "@/components/icons";
 import { DEMO_PEOPLE } from "@/data/people.mock";
+
+type Scale = 0 | 1 | 2 | 3;
+type Theme = "day" | "night";
+
+const SHARE_TEXT = `KPOL
+
+정치·미디어·선거 흐름을
+실시간 KPOL TOP100으로 확인하세요.
+
+지금 가장 주목받는 인물과 이슈를
+한눈에 볼 수 있습니다.
+
+www.kpol.한국`;
+
+const SHARE_URL = "https://www.kpol.한국";
+
+function clampScale(n: number): Scale {
+  if (n <= 0) return 0;
+  if (n >= 3) return 3;
+  return n as Scale;
+}
 
 type TabKey = "people" | "media" | "by-election" | "local-election";
 
@@ -20,6 +43,13 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "by-election", label: "보궐선거" },
   { key: "local-election", label: "지방선거" },
 ];
+
+const TAB_EVENT_TARGET: Record<TabKey, CategoryTarget> = {
+  people: "person",
+  media: "media",
+  "by-election": "by_election",
+  "local-election": "local_election",
+};
 
 const BASIS_BY_TAB: Record<TabKey, string> = {
   people: "산정 기준: 순위 변동 · 24시 · 14:00 자동집계",
@@ -60,12 +90,22 @@ function loadInitialInterests(): string[] {
 export function Shell() {
   const [activeTab, setActiveTab] = useState<TabKey>("people");
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [basisOpen, setBasisOpen] = useState(false);
   const [scale, setScale] = useState<Scale>(0);
   const [theme, setTheme] = useState<Theme>("night");
   const [interests, setInterests] = useState<string[]>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  };
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   const interestSet = useMemo(() => new Set(interests), [interests]);
   const detailPerson = useMemo(
@@ -78,6 +118,13 @@ export function Shell() {
     setScale(loadInitialScale());
     setTheme(loadInitialTheme());
     setInterests(loadInitialInterests());
+  }, []);
+
+  // PWA 실행 시 1회 이벤트 (mount 시. is_pwa는 analytics에서 standalone 감지)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isStandalone = window.matchMedia?.("(display-mode: standalone)").matches;
+    if (isStandalone) fireEvent("pwa_launch");
   }, []);
 
   // persist interests
@@ -109,13 +156,44 @@ export function Shell() {
     );
   };
 
-  const scrollToTop = () => {
-    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   // 모바일 안전망 — onClick + onPointerUp 둘 다에서 idempotent setState.
   const openBasis = () => setBasisOpen(true);
-  const openSettings = () => setSettingsOpen(true);
+
+  const toggleTheme = () =>
+    setTheme((t) => (t === "night" ? "day" : "night"));
+  const decScale = () => setScale((s) => clampScale(s - 1));
+  const incScale = () => setScale((s) => clampScale(s + 1));
+
+  const handleShare = async () => {
+    fireEvent("share_click");
+    // 1) native share sheet
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "KPOL",
+          text: SHARE_TEXT,
+          url: SHARE_URL,
+        });
+        return;
+      } catch (err) {
+        // 사용자 취소는 AbortError — silent.
+        if (err instanceof Error && err.name === "AbortError") return;
+        // 그 외 실패는 clipboard로 fallback (아래로 진행)
+      }
+    }
+    // 2) clipboard fallback
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(`${SHARE_TEXT}\n${SHARE_URL}`);
+        showToast("공유 문구가 복사되었습니다.");
+        return;
+      } catch {
+        // 아래로 진행
+      }
+    }
+    // 3) 모두 실패
+    showToast("공유를 사용할 수 없습니다. 배포 주소에서 다시 시도해 주세요.");
+  };
 
   return (
     <>
@@ -129,26 +207,30 @@ export function Shell() {
             </h1>
           </div>
 
-          {/* 2줄: 가로 스크롤 4탭 — border 없음, 같은 배경 */}
+          {/* 2줄: 4탭 — flex-1 균등 분배, 모든 텍스트 cell 가운데 정렬.
+              각 텍스트의 visual center가 화면 폭 1/8, 3/8, 5/8, 7/8에 정확히 위치. */}
           <nav>
-            <ul className="flex overflow-x-auto no-scrollbar">
+            <ul className="flex w-full">
               {TABS.map((t) => {
                 const active = t.key === activeTab;
                 return (
-                  <li key={t.key} className="shrink-0">
+                  <li key={t.key} className="flex-1">
                     <button
                       type="button"
                       onClick={() => {
                         setActiveTab(t.key);
                         setDetailId(null);
+                        fireEvent("category_click", {
+                          event_target: TAB_EVENT_TARGET[t.key],
+                        });
                       }}
-                      className={`kpol-text-tab relative px-4 h-9 pt-2 flex items-end justify-center leading-none transition-colors ${
+                      className={`kpol-text-tab w-full h-9 pt-2 flex items-end justify-center leading-none transition-colors ${
                         active
                           ? "text-fg font-medium"
                           : "text-fg-dim hover:text-fg-muted"
                       }`}
                     >
-                      {active ? `[${t.label}]` : t.label}
+                      [{t.label}]
                     </button>
                   </li>
                 );
@@ -156,28 +238,26 @@ export function Shell() {
             </ul>
           </nav>
 
-          {/* 3줄: 산정 기준 띄 — border·배경 mismatch 없음 */}
-          <button
-            type="button"
-            onClick={openBasis}
-            onPointerUp={openBasis}
-            aria-label="산정 기준 상세 보기"
-            className="relative z-10 w-full flex items-center px-4 h-8 text-left cursor-pointer touch-manipulation active:bg-elev/60"
-          >
+          {/* 3줄: 산정 기준 띄 — wrapper는 클릭 ✗, "산정 기준" 단어만 button */}
+          <div className="relative z-10 flex items-center px-4 h-8">
             <span className="kpol-text-basis tracking-wide">
-              <span className="text-accent-green font-medium underline decoration-accent-green/40 underline-offset-2">
+              <button
+                type="button"
+                onClick={openBasis}
+                aria-label="산정 기준 상세 보기"
+                className="text-accent-green font-medium underline decoration-accent-green/40 underline-offset-2 cursor-pointer touch-manipulation active:opacity-70 transition-opacity"
+              >
                 산정 기준
-              </span>
+              </button>
               <span className="text-fg-dim">
                 {BASIS_BY_TAB[activeTab].replace("산정 기준", "")}
               </span>
             </span>
-          </button>
+          </div>
         </header>
 
         {/* ── 중앙 독립 스크롤 ── */}
         <main
-          ref={scrollRef}
           className="flex-1 overflow-y-auto overscroll-contain relative z-0"
         >
           {activeTab === "people" ? (
@@ -190,63 +270,79 @@ export function Shell() {
                   onOpen={openDetail}
                 />
               ))}
-              <li className="px-4 py-3 text-fg-dim kpol-text-label-xs tracking-wide border-t border-border/40">
-                DEMO DATA · 가상 인물 표시 (다음 단계에서 실 데이터 연결)
-              </li>
             </ul>
           ) : (
             <PlaceholderPane label={TABS.find((t) => t.key === activeTab)!.label} />
           )}
         </main>
 
-        {/* ── 하단 고정: 3항목 — bg/border 모두 제거, 한 덩어리 배경 ── */}
-        <nav className="shrink-0 bg-bg relative z-20">
-          <ul className="grid grid-cols-3 h-14">
-            <li>
+        {/* ── 하단 고정: 컨트롤 바 (safe-area 바로 위에 얇게 붙음) ── */}
+        <nav
+          className="shrink-0 bg-bg relative z-20"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="grid grid-cols-3 items-end h-16 px-4 pb-1.5">
+            {/* 좌: Day/Night 토글 — 명확히 보이도록 text-fg */}
+            <div className="flex justify-start">
               <button
                 type="button"
-                onClick={scrollToTop}
-                aria-label="맨 위로"
-                className="w-full h-full flex items-center justify-center text-fg hover:text-brand active:text-brand transition-colors cursor-pointer touch-manipulation"
+                onClick={toggleTheme}
+                aria-label={theme === "night" ? "Day 모드로 전환" : "Night 모드로 전환"}
+                aria-pressed={theme === "day"}
+                className="w-9 h-9 flex items-end justify-center pb-[6px] text-fg hover:text-brand transition-colors cursor-pointer touch-manipulation"
               >
-                <ArrowUpIcon className="w-[18px] h-[18px] pointer-events-none" />
+                {theme === "night" ? (
+                  <SunIcon className="w-5 h-5 pointer-events-none" />
+                ) : (
+                  <MoonIconFilled className="w-5 h-5 pointer-events-none" />
+                )}
               </button>
-            </li>
-            <li>
+            </div>
+
+            {/* 중: 공유 — 즉시 native share sheet 호출 */}
+            <div className="flex justify-center">
               <button
                 type="button"
-                aria-label="검색"
-                className="w-full h-full flex items-center justify-center text-fg hover:text-brand transition-colors cursor-pointer touch-manipulation"
+                onClick={handleShare}
+                aria-label="공유"
+                className="w-9 h-9 flex items-end justify-center pb-[6px] text-fg hover:text-brand active:opacity-70 transition-all cursor-pointer touch-manipulation"
               >
-                <SearchIcon className="w-[18px] h-[18px] pointer-events-none" />
+                <ShareIcon className="w-5 h-5 pointer-events-none" />
               </button>
-            </li>
-            <li>
+            </div>
+
+            {/* 우: 글자 크기 - / + */}
+            <div className="flex justify-end items-center gap-1.5">
               <button
                 type="button"
-                onClick={openSettings}
-                onPointerUp={openSettings}
-                aria-label="설정"
-                className={`w-full h-full flex items-center justify-center transition-colors cursor-pointer touch-manipulation ${
-                  settingsOpen ? "text-brand" : "text-fg hover:text-brand"
+                onClick={decScale}
+                disabled={scale === 0}
+                aria-label="글자 크기 줄이기"
+                className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
+                  scale === 0
+                    ? "border-border bg-elev/60 text-fg-dim/40 cursor-not-allowed"
+                    : "border-fg-muted bg-elev text-fg hover:text-brand cursor-pointer"
                 }`}
               >
-                <SettingsIcon className="w-[18px] h-[18px] pointer-events-none" />
+                <MinusIcon className="w-[13px] h-[13px] pointer-events-none" />
               </button>
-            </li>
-          </ul>
+              <button
+                type="button"
+                onClick={incScale}
+                disabled={scale === 3}
+                aria-label="글자 크기 키우기"
+                className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
+                  scale === 3
+                    ? "border-border bg-elev/60 text-fg-dim/40 cursor-not-allowed"
+                    : "border-fg-muted bg-elev text-fg hover:text-brand cursor-pointer"
+                }`}
+              >
+                <PlusIcon className="w-[13px] h-[13px] pointer-events-none" />
+              </button>
+            </div>
+          </div>
         </nav>
       </div>
-
-      {settingsOpen ? (
-        <Settings
-          scale={scale}
-          theme={theme}
-          onChangeScale={setScale}
-          onChangeTheme={setTheme}
-          onClose={() => setSettingsOpen(false)}
-        />
-      ) : null}
 
       {basisOpen ? <BasisExplainer onClose={() => setBasisOpen(false)} /> : null}
 
@@ -258,18 +354,26 @@ export function Shell() {
           onClose={closeDetail}
         />
       ) : null}
+
+      {/* Toast — 공유 결과/실패 안내. 2.5s 후 자동 사라짐. */}
+      {toast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[60] px-4 py-2 rounded-md bg-elev text-fg text-[13px] border border-border-strong shadow-lg pointer-events-none"
+          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        >
+          {toast}
+        </div>
+      ) : null}
     </>
   );
 }
 
 function PlaceholderPane({ label }: { label: string }) {
   return (
-    <div className="px-4 py-10 text-center">
-      <div className="kpol-text-name text-fg font-medium mb-2">{label} 탭</div>
-      <div className="kpol-text-detail text-fg-dim leading-relaxed">
-        디자인·UX 확인 단계입니다.
-        <br />이 탭의 데이터 모델·표시는 다음 단계에서 합의됩니다.
-      </div>
+    <div className="px-4 py-16 text-center">
+      <div className="kpol-text-detail text-fg-dim">{label} 준비 중</div>
     </div>
   );
 }

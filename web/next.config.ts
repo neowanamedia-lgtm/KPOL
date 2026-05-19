@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   // Next.js 16 Turbopack 기본 — Serwist는 production build에서만 동작하므로
   // dev에서 webpack/turbopack 충돌 경고를 막기 위해 빈 turbopack 설정 명시.
   turbopack: {},
+  // Next.js dev indicator(좌하단 N 배지) 숨김 — 사용자 화면에 개발 흔적 ✗
+  devIndicators: false,
   // dev 외부 접근(HMR 포함) 허용 — 모바일이 같은 LAN의 PC IP로 접근 시 필요.
   // 와일드카드로 사설망 흔한 대역 모두 허용 (172.16-31.x, 192.168.x, 10.x).
   allowedDevOrigins: [

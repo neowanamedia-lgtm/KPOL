@@ -5,7 +5,19 @@
       "WebFetch(domain:open.assembly.go.kr)",
       "WebFetch(domain:www.data.go.kr)",
       "WebFetch(domain:swknu.kongju.ac.kr)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "PowerShell(Get-ChildItem C:\\\\Projects -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'dulsai|dul' } | Select-Object FullName)",
+      "PowerShell(npm *)",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\"; \"LENGTH: $\\($r.Content.Length\\)\" } catch { \"ERROR: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 15; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
+      "Bash(kill %1)",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 60; \"STATUS: $\\($r.StatusCode\\)\"; \"LENGTH: $\\($r.Content.Length\\)\" } catch { \"ERROR: $_\" })",
+      "PowerShell(Get-NetFirewallRule *)",
+      "PowerShell(Get-NetConnectionProfile *)",
+      "PowerShell(try { $r = Invoke-WebRequest http://172.30.1.53:3000 -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 60; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000/admin -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })"
     ]
   }
 }

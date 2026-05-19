@@ -116,9 +116,7 @@ export function PersonDetail({
         ) : (
           <section className="pt-2 pb-6 kpol-text-detail">
             <ProfileRow label="직책" value={person.currentRole} />
-            <p className="text-fg-dim mt-3">
-              프로필 정보는 다음 단계에서 채워집니다.
-            </p>
+            <p className="text-fg-dim mt-3">프로필 정보 준비 중</p>
           </section>
         )}
 
@@ -167,9 +165,7 @@ export function PersonDetail({
               ))}
             </ul>
           ) : (
-            <p className="text-fg-dim kpol-text-detail">
-              최근 주목 뉴스는 다음 단계에서 연결됩니다.
-            </p>
+            <p className="text-fg-dim kpol-text-detail">최근 주요 뉴스 준비 중</p>
           )}
         </section>
       </main>
