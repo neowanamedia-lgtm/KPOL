@@ -37,23 +37,24 @@
 }
 
 :root[data-theme="day"] {
-  --kpol-bg-base: #f6f7f9;
-  --kpol-bg-elev: #ffffff;
-  --kpol-bg-sticky: #ffffff;
-  --kpol-border: #e3e7ec;
-  --kpol-border-strong: #c5ccd5;
+  /* 뉴트럴 오프화이트 — 노란기·채도 낮춤, 종이감만 살짝. 눈 피로 낮게. */
+  --kpol-bg-base: #ecebe6;
+  --kpol-bg-elev: #e3e1da;
+  --kpol-bg-sticky: #ecebe6;
+  --kpol-border: #d1cfc8;
+  --kpol-border-strong: #b6b3ac;
 
-  --kpol-text-1: #15181c;
-  --kpol-text-2: #4a525c;
-  --kpol-text-3: #8a929c;
+  --kpol-text-1: #1f1e1c;
+  --kpol-text-2: #4d4a45;
+  --kpol-text-3: #7d7a74;
 
   --kpol-brand: #9c2a3d;
-  --kpol-brand-strong: #821f30;
+  --kpol-brand-strong: #7e1f30;
 
-  --kpol-accent-green: #1ea76a;
+  --kpol-accent-green: #167a4f;
 
-  --kpol-signal-up: #c54239;
-  --kpol-signal-down: #2563c7;
+  --kpol-signal-up: #b8362c;
+  --kpol-signal-down: #1f56b8;
   --kpol-signal-flat: var(--kpol-accent-green);
 }
 
@@ -108,7 +109,7 @@ body {
    PWA orientation: portrait는 standalone에서만 효과 → 일반 브라우저
    세션에서는 안내 화면으로 우회. [[kpol-portrait-only]]
    ────────────────────────────────────────────────────────────── */
-.kpol-landscape-guard { display: none; }
+.kpol-landscape-guard { display: none; pointer-events: none; }
 
 /* 모바일·태블릿 가로 모두 잡기 위해 폭 1024px 이하 + landscape 조건.
    데스크탑 와이드(1025px+)는 모바일 셸 그대로 렌더(가로 안내 ✗). */

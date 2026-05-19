@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PersonRow } from "@/components/PersonRow";
+import { PersonDetail } from "@/components/PersonDetail";
 import { Settings, type Scale, type Theme } from "@/components/Settings";
+import { BasisExplainer } from "@/components/BasisExplainer";
 import {
   ArrowUpIcon,
   SearchIcon,
@@ -28,6 +30,7 @@ const BASIS_BY_TAB: Record<TabKey, string> = {
 
 const SCALE_KEY = "kpol-scale";
 const THEME_KEY = "kpol-theme";
+const INTERESTS_KEY = "kpol-interests";
 
 function loadInitialScale(): Scale {
   if (typeof window === "undefined") return 0;
@@ -42,19 +45,46 @@ function loadInitialTheme(): Theme {
   return raw === "day" ? "day" : "night";
 }
 
+function loadInitialInterests(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(INTERESTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function Shell() {
   const [activeTab, setActiveTab] = useState<TabKey>("people");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [basisOpen, setBasisOpen] = useState(false);
   const [scale, setScale] = useState<Scale>(0);
   const [theme, setTheme] = useState<Theme>("night");
+  const [interests, setInterests] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const interestSet = useMemo(() => new Set(interests), [interests]);
+  const detailPerson = useMemo(
+    () => (detailId ? DEMO_PEOPLE.find((p) => p.id === detailId) ?? null : null),
+    [detailId],
+  );
 
   // hydrate from localStorage after mount (SSR-safe)
   useEffect(() => {
     setScale(loadInitialScale());
     setTheme(loadInitialTheme());
+    setInterests(loadInitialInterests());
   }, []);
+
+  // persist interests
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(INTERESTS_KEY, JSON.stringify(interests));
+  }, [interests]);
 
   // sync to <html data-scale> + persist
   useEffect(() => {
@@ -70,19 +100,28 @@ export function Shell() {
     window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  const toggleExpand = (id: string) => {
-    setExpandedId((curr) => (curr === id ? null : id));
+  const openDetail = (id: string) => setDetailId(id);
+  const closeDetail = () => setDetailId(null);
+
+  const toggleInterest = (id: string) => {
+    setInterests((curr) =>
+      curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id],
+    );
   };
 
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // 모바일 안전망 — onClick + onPointerUp 둘 다에서 idempotent setState.
+  const openBasis = () => setBasisOpen(true);
+  const openSettings = () => setSettingsOpen(true);
+
   return (
     <>
       <div className="fixed inset-0 flex flex-col bg-bg">
         {/* ── 상단 고정: 3줄 — 내부 가로줄 일체 없음, 한 덩어리 배경 ── */}
-        <header className="shrink-0 bg-bg">
+        <header className="shrink-0 bg-bg relative z-20">
           {/* 1줄: 로고 단독 — 자동집계 텍스트는 3줄로 이동 */}
           <div className="flex items-center px-4 pt-2 pb-1">
             <h1 className="kpol-text-brand text-brand font-normal leading-none">
@@ -101,7 +140,7 @@ export function Shell() {
                       type="button"
                       onClick={() => {
                         setActiveTab(t.key);
-                        setExpandedId(null);
+                        setDetailId(null);
                       }}
                       className={`kpol-text-tab relative px-4 h-9 pt-2 flex items-end justify-center leading-none transition-colors ${
                         active
@@ -120,8 +159,10 @@ export function Shell() {
           {/* 3줄: 산정 기준 띄 — border·배경 mismatch 없음 */}
           <button
             type="button"
+            onClick={openBasis}
+            onPointerUp={openBasis}
             aria-label="산정 기준 상세 보기"
-            className="w-full flex items-center px-4 h-8 text-left active:bg-elev/60"
+            className="relative z-10 w-full flex items-center px-4 h-8 text-left cursor-pointer touch-manipulation active:bg-elev/60"
           >
             <span className="kpol-text-basis tracking-wide">
               <span className="text-accent-green font-medium underline decoration-accent-green/40 underline-offset-2">
@@ -137,7 +178,7 @@ export function Shell() {
         {/* ── 중앙 독립 스크롤 ── */}
         <main
           ref={scrollRef}
-          className="flex-1 overflow-y-auto overscroll-contain"
+          className="flex-1 overflow-y-auto overscroll-contain relative z-0"
         >
           {activeTab === "people" ? (
             <ul className="pb-8">
@@ -145,8 +186,8 @@ export function Shell() {
                 <PersonRow
                   key={p.id}
                   person={p}
-                  expanded={expandedId === p.id}
-                  onToggle={toggleExpand}
+                  interested={interestSet.has(p.id)}
+                  onOpen={openDetail}
                 />
               ))}
               <li className="px-4 py-3 text-fg-dim kpol-text-label-xs tracking-wide border-t border-border/40">
@@ -159,37 +200,38 @@ export function Shell() {
         </main>
 
         {/* ── 하단 고정: 3항목 — bg/border 모두 제거, 한 덩어리 배경 ── */}
-        <nav className="shrink-0 bg-bg">
+        <nav className="shrink-0 bg-bg relative z-20">
           <ul className="grid grid-cols-3 h-14">
             <li>
               <button
                 type="button"
                 onClick={scrollToTop}
                 aria-label="맨 위로"
-                className="w-full h-full flex items-center justify-center text-fg hover:text-brand active:text-brand transition-colors"
+                className="w-full h-full flex items-center justify-center text-fg hover:text-brand active:text-brand transition-colors cursor-pointer touch-manipulation"
               >
-                <ArrowUpIcon className="w-[18px] h-[18px]" />
+                <ArrowUpIcon className="w-[18px] h-[18px] pointer-events-none" />
               </button>
             </li>
             <li>
               <button
                 type="button"
                 aria-label="검색"
-                className="w-full h-full flex items-center justify-center text-fg hover:text-brand transition-colors"
+                className="w-full h-full flex items-center justify-center text-fg hover:text-brand transition-colors cursor-pointer touch-manipulation"
               >
-                <SearchIcon className="w-[18px] h-[18px]" />
+                <SearchIcon className="w-[18px] h-[18px] pointer-events-none" />
               </button>
             </li>
             <li>
               <button
                 type="button"
-                onClick={() => setSettingsOpen(true)}
+                onClick={openSettings}
+                onPointerUp={openSettings}
                 aria-label="설정"
-                className={`w-full h-full flex items-center justify-center transition-colors ${
+                className={`w-full h-full flex items-center justify-center transition-colors cursor-pointer touch-manipulation ${
                   settingsOpen ? "text-brand" : "text-fg hover:text-brand"
                 }`}
               >
-                <SettingsIcon className="w-[18px] h-[18px]" />
+                <SettingsIcon className="w-[18px] h-[18px] pointer-events-none" />
               </button>
             </li>
           </ul>
@@ -203,6 +245,17 @@ export function Shell() {
           onChangeScale={setScale}
           onChangeTheme={setTheme}
           onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
+
+      {basisOpen ? <BasisExplainer onClose={() => setBasisOpen(false)} /> : null}
+
+      {detailPerson ? (
+        <PersonDetail
+          person={detailPerson}
+          isInterested={interestSet.has(detailPerson.id)}
+          onToggleInterest={toggleInterest}
+          onClose={closeDetail}
         />
       ) : null}
     </>

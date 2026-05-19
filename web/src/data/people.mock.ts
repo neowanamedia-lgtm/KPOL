@@ -2,12 +2,29 @@
  * KPOL 인물 탭 데모 데이터 (가상 인물).
  *
  * [[kpol-data-foundation]]: 실명+임의수치 구조 금지 → 데모는 가상 이름 + DEMO 라벨.
- * 실제 데이터 연결은 다음 단계.
  *
- * rankHistory7d: 길이 7. 인덱스 0 = 6일 전, 마지막 = 오늘.
- * 값은 현재 순위(낮을수록 위). 차트는 Y축 반전해서 1위가 위에 보이도록 처리.
+ * rankHistory7d: 인덱스 0 = 6일 전, 마지막 = 오늘. Y축 반전 차트.
+ * profile/news 는 1차로 1위 인물만 풀데이터, 나머지는 기본 데이터.
  */
+
 export type RankChange = number;
+
+export interface PersonProfile {
+  party: string;
+  constituency: string;
+  birth: string; // "1965-08-12 (60세)"
+  gender: "남" | "여";
+  occupation: string;
+  affiliation: string;
+  education: string[]; // 1~3줄
+  career: string[]; // 1~3줄
+}
+
+export interface NewsItem {
+  title: string;
+  source: string;
+  time: string; // "2시간 전" 형식
+}
 
 export interface DemoPerson {
   id: string;
@@ -17,10 +34,37 @@ export interface DemoPerson {
   rankChange24h: RankChange;
   rankHistory7d: number[];
   recentSignals?: string[];
+  profile?: PersonProfile;
+  news?: NewsItem[];
 }
 
 export const DEMO_PEOPLE: DemoPerson[] = [
-  { id: "p01", rank: 1,  name: "김도현", currentRole: "대통령",          rankChange24h:  0, rankHistory7d: [2, 2, 1, 1, 2, 1, 1], recentSignals: ["정상회담 일정 보도", "예산안 관련 입장 발표"] },
+  {
+    id: "p01",
+    rank: 1,
+    name: "김도현",
+    currentRole: "대통령",
+    rankChange24h: 0,
+    rankHistory7d: [2, 2, 1, 1, 2, 1, 1],
+    recentSignals: ["정상회담 일정 보도", "예산안 관련 입장 발표"],
+    profile: {
+      party: "무소속 (대통령)",
+      constituency: "전국",
+      birth: "1965-08-12 (60세)",
+      gender: "남",
+      occupation: "정치인",
+      affiliation: "대통령실",
+      education: ["서울대학교 정치학과"],
+      career: ["前 OO도지사", "前 국회의원 (3선)"],
+    },
+    news: [
+      { title: "정상회담 일정 공식 발표, 다음 주 방문 예정", source: "연합뉴스", time: "2시간 전" },
+      { title: "예산안 처리 관련 입장문 발표", source: "JTBC", time: "5시간 전" },
+      { title: "주요 외교 이슈 대응 강조", source: "KBS", time: "9시간 전" },
+      { title: "지방 순회 일정 마무리", source: "MBC", time: "1일 전" },
+      { title: "경제 정책 관련 추가 설명", source: "한겨레", time: "2일 전" },
+    ],
+  },
   { id: "p02", rank: 2,  name: "이서연", currentRole: "A당 당대표",      rankChange24h:  3, rankHistory7d: [6, 5, 4, 5, 4, 5, 2], recentSignals: ["전국 순회 일정 시작", "당 혁신안 관련 인터뷰"] },
   { id: "p03", rank: 3,  name: "박지훈", currentRole: "B당 당대표",      rankChange24h: -1, rankHistory7d: [1, 1, 2, 2, 3, 2, 3], recentSignals: ["원내대표 회동", "법안 관련 입장문"] },
   { id: "p04", rank: 4,  name: "최민준", currentRole: "국회의원",         rankChange24h:  5, rankHistory7d: [12, 11, 9, 10, 8, 9, 4], recentSignals: ["상임위 질의", "지역구 현안 관련 보도"] },
