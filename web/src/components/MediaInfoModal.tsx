@@ -156,7 +156,8 @@ export function MediaInfoModal({
 
   if (!id) return null;
 
-  // 진행자 + 고정 패널 병렬 — 단일 "진행자:" 행에 함께 표시
+  // 진행자 라벨 1개로 통합 — host + panelist 병합.
+  // "진행팀" placeholder 는 사용자 spec 상 노출 금지 → 모든 form 에서 제외.
   const peopleNames = [
     ...(program?.hosts ?? [])
       .filter((h) => h.active !== false)
@@ -164,7 +165,14 @@ export function MediaInfoModal({
     ...(program?.panelists ?? [])
       .filter((p) => p.active !== false)
       .map((p) => p.person_name),
-  ].join(", ");
+  ]
+    .filter(
+      (name): name is string =>
+        typeof name === "string" &&
+        name.trim().length > 0 &&
+        !name.includes("진행팀"),
+    )
+    .join(", ");
 
   // 구독자 수 — subscriber_count > 0 일 때만 (0/null 은 숨김, 비공개는 라벨 표시)
   const subscriberCount = program?.channel?.subscriber_count ?? null;

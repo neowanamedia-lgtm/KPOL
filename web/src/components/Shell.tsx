@@ -317,22 +317,27 @@ export function Shell() {
         {/* ── 하단 고정: 컨트롤 바 (safe-area 바로 위에 얇게 붙음) ──
              미디어 정보 모달이 열렸을 때만 z 를 backdrop(z-40)·modal(z-50) 위로 올려
              글자 크기 +/- · 테마 · 공유 버튼이 막히지 않게 한다.
+             inline style 로 z-index 직접 지정 — Tailwind JIT 의 arbitrary value
+             누락 가능성 차단.
              PersonDetail (immersive z-50 bg-bg full-screen) 진입 시는 z-20 유지해서
              nav 가 detail 위로 떠올라 immersion 깨지지 않게 한다. */}
         <nav
-          className={`shrink-0 bg-bg relative ${
-            activeTab === "media" && mediaProgramId != null
-              ? "z-[60]"
-              : "z-20"
-          }`}
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          className="shrink-0 bg-bg relative"
+          style={{
+            zIndex:
+              activeTab === "media" && mediaProgramId != null ? 60 : 20,
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
         >
           <div className="grid grid-cols-3 items-end h-16 px-4 pb-1.5">
             {/* 좌: Day/Night 토글 — 명확히 보이도록 text-fg */}
             <div className="flex justify-start">
               <button
                 type="button"
-                onClick={toggleTheme}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTheme();
+                }}
                 aria-label={theme === "night" ? "Day 모드로 전환" : "Night 모드로 전환"}
                 aria-pressed={theme === "day"}
                 className="w-9 h-9 flex items-end justify-center pb-[6px] text-fg hover:text-brand transition-colors cursor-pointer touch-manipulation"
@@ -349,7 +354,10 @@ export function Shell() {
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={handleShare}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShare();
+                }}
                 aria-label="공유"
                 className="w-9 h-9 flex items-end justify-center pb-[6px] text-fg hover:text-brand active:opacity-70 transition-all cursor-pointer touch-manipulation"
               >
@@ -357,11 +365,14 @@ export function Shell() {
               </button>
             </div>
 
-            {/* 우: 글자 크기 - / + */}
+            {/* 우: 글자 크기 - / + (모달 열린 상태에서도 동작해야 하므로 stopPropagation 방어) */}
             <div className="flex justify-end items-center gap-1.5">
               <button
                 type="button"
-                onClick={decScale}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  decScale();
+                }}
                 disabled={scale === 0}
                 aria-label="글자 크기 줄이기"
                 className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
@@ -374,7 +385,10 @@ export function Shell() {
               </button>
               <button
                 type="button"
-                onClick={incScale}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  incScale();
+                }}
                 disabled={scale === 3}
                 aria-label="글자 크기 키우기"
                 className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
