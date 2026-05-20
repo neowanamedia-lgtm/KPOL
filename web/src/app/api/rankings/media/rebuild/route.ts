@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { checkAdminAuth } from "@/lib/admin-auth";
 import {
   FORMULA_VERSION,
   WEIGHTS,
@@ -55,14 +56,6 @@ export const runtime = "nodejs";
 const TARGET_MEDIA_TYPE = "youtube_channel";
 
 type Mode = "preview" | "apply";
-type AuthSource = "bearer-cron" | "bearer-admin" | "query-admin";
-
-interface AuthResult {
-  ok: boolean;
-  source?: AuthSource;
-  status?: number;
-  body?: object;
-}
 
 interface RawRow {
   id: string;
@@ -89,37 +82,6 @@ function getAdminClient() {
   return createClient(url, srk, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-}
-
-function checkAuth(req: Request, url: URL): AuthResult {
-  const adminKey = process.env.NEXT_PUBLIC_KPOL_ADMIN_KEY;
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!adminKey && !cronSecret) {
-    return {
-      ok: false,
-      status: 500,
-      body: { error: "NEXT_PUBLIC_KPOL_ADMIN_KEY or CRON_SECRET must be set" },
-    };
-  }
-
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
-    if (cronSecret && token === cronSecret) {
-      return { ok: true, source: "bearer-cron" };
-    }
-    if (adminKey && token === adminKey) {
-      return { ok: true, source: "bearer-admin" };
-    }
-  }
-
-  const qKey = url.searchParams.get("key");
-  if (adminKey && qKey && qKey === adminKey) {
-    return { ok: true, source: "query-admin" };
-  }
-
-  return { ok: false, status: 403, body: { error: "forbidden" } };
 }
 
 function describeChannel(r: RankedRow): string | null {
@@ -259,11 +221,9 @@ async function loadAndScore(): Promise<{
 async function handle(req: Request) {
   const url = new URL(req.url);
 
-  const auth = checkAuth(req, url);
+  const auth = checkAdminAuth(req, url);
   if (!auth.ok) {
-    return NextResponse.json(auth.body ?? { error: "forbidden" }, {
-      status: auth.status ?? 403,
-    });
+    return NextResponse.json(auth.body, { status: auth.status });
   }
 
   if (!isSupabaseConfigured) {
