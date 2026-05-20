@@ -5,22 +5,21 @@ import type { MediaProgramFull } from "@/lib/programs";
 import { CloseIcon, StarIcon, StarIconFilled } from "@/components/icons";
 
 /**
- * KPOL 미디어 프로그램 간단 정보 모달 — 바텀시트.
+ * KPOL 미디어 프로그램 간단 정보 모달 — 중앙 compact 카드.
  *
- * 풀스크린 ProgramDetail (immersive) 을 대체. 리스트 중심 UX 유지하면서
- * "빠르게 확인하고 닫는 구조" 로 단순화.
+ * 디자인:
+ *   - 화면 중앙 정렬 (fixed inset-0 + flex items-center)
+ *   - max-w-xs 좁은 카드. 줄 간격/패딩 최소화
+ *   - 한 화면에 모두 보이도록 스크롤 없음
+ *   - 라벨:값 inline 형식 (예: "진행자: 김명준")
  *
- * 표시 항목 (정보 밀도 최소):
- *   - 타이틀 + 별 + 닫기
- *   - 진행자 (있으면)
- *   - 고정 패널 (있으면)
- *   - 구독자 수 (channel 데이터 있을 때)
- *   - 어제 조회수 (daily_ranking 있을 때)
- *   - "채널 방문하기" CTA (channel.official_url > external_url > /channel/{id})
- *
- * 제거된 영역:
- *   - 상세 설명, ProfileRow, sparkline, recent videos, person_links 전부 미표시
- *   - 페이지 전환 ✗, fixed bottom 바텀시트 만
+ * 표시 항목 (사용자 spec):
+ *   [프로그램명]   [★] [×]
+ *   진행자: 김명준
+ *   고정 패널: a, b
+ *   구독자 수: 152만명
+ *   어제 조회수: 84만회
+ *   [채널 방문하기]
  */
 
 interface Props {
@@ -79,29 +78,30 @@ export function MediaInfoModal({
 
   if (!id) return null;
 
+  // 진행자 / 패널 — 쉼표 join, active=true 만
   const hostNames = (program?.hosts ?? [])
     .filter((h) => h.active !== false)
     .map((h) => h.person_name)
-    .join(" · ");
+    .join(", ");
   const panelistNames = (program?.panelists ?? [])
     .filter((p) => p.active !== false)
     .map((p) => p.person_name)
-    .join(" · ");
+    .join(", ");
 
+  // 구독자 수
   const subscriberLabel = program?.channel?.hidden_subscriber_count
     ? "비공개"
-    : formatViewsKo(program?.channel?.subscriber_count);
-  const showSubscriber =
-    program?.channel != null &&
-    (program.channel.hidden_subscriber_count ||
-      program.channel.subscriber_count != null);
+    : program?.channel?.subscriber_count != null
+      ? `${formatViewsKo(program.channel.subscriber_count)}명`
+      : null;
 
-  const previousDayView = formatViewsKo(
-    program?.daily_ranking?.previous_day_view_count,
-  );
-  const showPreviousDayView =
-    program?.daily_ranking?.previous_day_view_count != null;
+  // 어제 조회수
+  const previousDayViewLabel =
+    program?.daily_ranking?.previous_day_view_count != null
+      ? `${formatViewsKo(program.daily_ranking.previous_day_view_count)}회`
+      : null;
 
+  // 채널 URL
   const visitUrl =
     program?.channel?.official_url ??
     program?.external_url ??
@@ -122,24 +122,23 @@ export function MediaInfoModal({
         aria-label="닫기"
         className="fixed inset-0 z-40 bg-black/60 cursor-pointer"
       />
-      {/* Bottom sheet */}
-      <div
-        className="fixed left-0 right-0 bottom-0 z-50 bg-bg border-t border-border-strong rounded-t-xl flex flex-col max-h-[80dvh]"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="overflow-y-auto px-6 pt-5 pb-6">
+      {/* Compact center modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-6 pointer-events-none">
+        <div
+          className="bg-bg border border-border-strong rounded-lg w-full max-w-xs px-4 py-4 pointer-events-auto"
+          role="dialog"
+          aria-modal="true"
+        >
           {loading || !program ? (
-            <p className="kpol-text-detail text-fg-dim py-8 text-center">
+            <p className="kpol-text-detail text-fg-dim py-2 text-center">
               {error ? `불러오기 실패: ${error}` : "불러오는 중…"}
             </p>
           ) : (
             <>
-              {/* 타이틀 + 별 + 닫기 */}
-              <div className="flex items-center gap-1 min-w-0 mb-4">
+              {/* 프로그램명 + 별 + 닫기 */}
+              <div className="flex items-center gap-1 min-w-0 mb-3">
                 <h2
-                  className={`text-[18px] font-medium leading-tight truncate flex-1 ${
+                  className={`text-[16px] font-medium leading-tight truncate flex-1 ${
                     isInterested ? "text-accent-green" : "text-fg"
                   }`}
                 >
@@ -150,81 +149,67 @@ export function MediaInfoModal({
                   onClick={toggle}
                   aria-label={isInterested ? "관심 해제" : "관심 등록"}
                   aria-pressed={isInterested}
-                  className={`w-8 h-8 flex items-center justify-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
+                  className={`w-7 h-7 flex items-center justify-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
                     isInterested
                       ? "text-accent-green"
                       : "text-fg-dim hover:text-fg-muted"
                   }`}
                 >
                   {isInterested ? (
-                    <StarIconFilled className="w-[18px] h-[18px] pointer-events-none" />
+                    <StarIconFilled className="w-4 h-4 pointer-events-none" />
                   ) : (
-                    <StarIcon className="w-[18px] h-[18px] pointer-events-none" />
+                    <StarIcon className="w-4 h-4 pointer-events-none" />
                   )}
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   aria-label="닫기"
-                  className="w-10 h-10 flex items-center justify-center text-fg-muted hover:text-fg cursor-pointer touch-manipulation shrink-0"
+                  className="w-7 h-7 flex items-center justify-center text-fg-muted hover:text-fg cursor-pointer touch-manipulation shrink-0"
                 >
-                  <CloseIcon className="w-5 h-5 pointer-events-none" />
+                  <CloseIcon className="w-4 h-4 pointer-events-none" />
                 </button>
               </div>
 
-              {/* 진행자 / 고정 패널 */}
-              <div className="space-y-3">
+              {/* 정보 라인 — 라벨:값 inline, 줄간격 최소 */}
+              <div className="space-y-1 kpol-text-meta">
                 {hostNames ? (
-                  <div>
-                    <div className="text-fg-dim kpol-text-list-xs mb-0.5">
-                      진행자
-                    </div>
-                    <div className="text-fg kpol-text-meta">{hostNames}</div>
+                  <div className="truncate">
+                    <span className="text-fg-dim">진행자:</span>{" "}
+                    <span className="text-fg">{hostNames}</span>
                   </div>
                 ) : null}
                 {panelistNames ? (
+                  <div className="truncate">
+                    <span className="text-fg-dim">고정 패널:</span>{" "}
+                    <span className="text-fg">{panelistNames}</span>
+                  </div>
+                ) : null}
+                {subscriberLabel ? (
                   <div>
-                    <div className="text-fg-dim kpol-text-list-xs mb-0.5">
-                      고정 패널
-                    </div>
-                    <div className="text-fg kpol-text-meta">{panelistNames}</div>
+                    <span className="text-fg-dim">구독자 수:</span>{" "}
+                    <span className="text-fg tabular-nums">
+                      {subscriberLabel}
+                    </span>
+                  </div>
+                ) : null}
+                {previousDayViewLabel ? (
+                  <div>
+                    <span className="text-fg-dim">어제 조회수:</span>{" "}
+                    <span className="text-fg tabular-nums">
+                      {previousDayViewLabel}
+                    </span>
                   </div>
                 ) : null}
               </div>
 
-              {/* 구독자 수 / 어제 조회수 */}
-              {showSubscriber || showPreviousDayView ? (
-                <div className="flex flex-wrap gap-x-8 gap-y-3 mt-5">
-                  {showSubscriber ? (
-                    <div>
-                      <div className="text-fg-dim kpol-text-list-xs mb-0.5">
-                        구독자 수
-                      </div>
-                      <div className="text-fg kpol-text-meta font-medium tabular-nums">
-                        {subscriberLabel}
-                      </div>
-                    </div>
-                  ) : null}
-                  {showPreviousDayView ? (
-                    <div>
-                      <div className="text-fg-dim kpol-text-list-xs mb-0.5">
-                        어제 조회수
-                      </div>
-                      <div className="text-fg kpol-text-meta font-medium tabular-nums">
-                        {previousDayView}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {/* 채널 방문하기 CTA — 가장 하단 강조 */}
+              {/* 채널 방문하기 CTA */}
               {visitUrl ? (
                 <a
                   href={visitUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="block mt-6 px-4 py-3 rounded-md bg-accent-green/10 border border-accent-green/50 text-accent-green text-center kpol-text-meta font-medium active:opacity-70 transition-opacity touch-manipulation"
+                  className="block mt-4 px-3 py-2 rounded-md bg-accent-green/10 border border-accent-green/50 text-accent-green text-center kpol-text-meta font-medium active:opacity-70 transition-opacity touch-manipulation"
                 >
                   채널 방문하기
                 </a>
