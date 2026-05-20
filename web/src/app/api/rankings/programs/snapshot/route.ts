@@ -13,18 +13,20 @@ export const runtime = "nodejs";
 /**
  * KPOL 미디어 프로그램 일일 랭킹 snapshot.
  *
- * 단일 지표: previous_day_view_count = 채널 최근 14일 영상의 (today_snapshot - yesterday_snapshot) 합.
- * 다른 지표 혼합 ✗ (kpol-data-ingest-safety 정정 지시).
+ * 단일 지표 (v2 — 24h 업로드 영상 기준):
+ *   previous_day_view_count = 채널의 최근 24h 내 업로드된 영상의 cumulative_view_count 합
+ *   recent_video_count       = 그 24h 영상의 갯수
+ *   ※ "previous_day_view_count" 컬럼명은 호환 유지 — UI 라벨은 "최근 24시간 총조회수"
  *
  * 흐름:
  *   1. media_programs 활성 + youtube_channel_id 있는 행 로드
  *   2. 채널별 unique 그룹 → playlistItems.list 로 최근 14일 영상 추출
+ *      (14d 윈도우로 가져오되 24h 필터는 metric 계산 단계에서 적용 — 저장은 14d 유지)
  *   3. videos.list 로 영상 통계 (viewCount/likeCount/commentCount)
  *   4. youtube_video_daily_snapshots upsert (snapshot_date=today, video_id+date unique)
- *   5. 어제 snapshot 조회 → 영상별 delta = today.view - yesterday.view
- *   6. 프로그램별 previous_day_view_count = sum(delta over 14d videos of program's channel)
- *   7. 프로그램 어제 ranking → rank_delta = yesterday_rank - today_rank
- *   8. media_program_daily_rankings upsert
+ *   5. 프로그램별 24h 영상 필터 → cumulative_view_count 합
+ *   6. 프로그램 어제 ranking → rank_delta = yesterday_rank - today_rank
+ *   7. media_program_daily_rankings upsert
  *
  * Mode:
  *   preview : 계산 결과만 반환, DB 쓰기 0
@@ -40,7 +42,7 @@ export const runtime = "nodejs";
 
 type Mode = "preview" | "apply";
 const RECENT_WINDOW_DAYS = 14;
-const FORMULA_VERSION = "media_programs_v1_prev_day_views";
+const FORMULA_VERSION = "media_programs_v2_24h_uploads_view_sum";
 
 interface ProgramRow {
   id: string;
@@ -238,64 +240,45 @@ async function handle(req: Request) {
     }
   }
 
-  // 5) 어제 snapshot 조회 (channel_id 별 video_id → view_count map)
-  const { data: ydayRowsRaw } = await supabase
-    .from("youtube_video_daily_snapshots")
-    .select("video_id, channel_id, cumulative_view_count")
-    .eq("snapshot_date", yesterdayDate)
-    .in("channel_id", uniqueChannelIds);
-  const ydayMap = new Map<string, number>(); // video_id → yesterday cumulative
-  for (const r of (ydayRowsRaw ?? []) as {
-    video_id: string;
-    cumulative_view_count: number | null;
-  }[]) {
-    if (r.cumulative_view_count != null) {
-      ydayMap.set(r.video_id, r.cumulative_view_count);
-    }
-  }
-
-  // 6) 오늘 snapshot map (실제 메모리 데이터 사용)
-  const todayMap = new Map<string, number>(); // video_id → today cumulative
+  // 5) 채널별 video grouping (in-memory)
   const videosByChannel = new Map<string, VideoSnapshotRow[]>();
   for (const v of videoSnapshotRows) {
-    if (v.cumulative_view_count != null) {
-      todayMap.set(v.video_id, v.cumulative_view_count);
-    }
     const arr = videosByChannel.get(v.channel_id) ?? [];
     arr.push(v);
     videosByChannel.set(v.channel_id, arr);
   }
 
-  // 7) 프로그램별 previous_day_view_count 계산
+  // 6) 프로그램별 metric 계산
+  //    "최근 24시간 총조회수" = 최근 24h 내 업로드된 영상의 cumulative_view_count 합.
+  //    "recent_video_count"   = 그 24h 영상의 갯수.
+  //    이전 (14d delta) 방식과 다른 metric — 24h 안에 올라온 영상의 누적 시청량.
+  const cutoff24hMs = Date.now() - 24 * 60 * 60 * 1000;
   interface ComputedProgramRow {
     program_id: string;
     title: string;
     channel_id: string;
-    previous_day_view_count: number | null; // null = 어제 snapshot 부재 또는 영상 0
+    previous_day_view_count: number | null; // null = 24h 내 영상 없음 또는 데이터 부족
     recent_video_count: number;
-    has_yesterday_baseline: boolean;
   }
   const computed: ComputedProgramRow[] = programs.map((p) => {
     const vids = videosByChannel.get(p.youtube_channel_id) ?? [];
-    let sumDelta = 0;
-    let hasYesterday = false;
+    let sum24h = 0;
+    let count24h = 0;
     for (const v of vids) {
-      const today = todayMap.get(v.video_id);
-      const yesterday = ydayMap.get(v.video_id);
-      if (today == null) continue;
-      if (yesterday != null) {
-        const delta = Math.max(0, today - yesterday); // 음수 방지 (view count 감소는 비정상)
-        sumDelta += delta;
-        hasYesterday = true;
-      }
+      if (!v.published_at) continue;
+      const pubMs = Date.parse(v.published_at);
+      if (!Number.isFinite(pubMs) || pubMs < cutoff24hMs) continue;
+      const viewCount = v.cumulative_view_count;
+      if (viewCount == null || !Number.isFinite(viewCount)) continue;
+      sum24h += Math.max(0, viewCount);
+      count24h += 1;
     }
     return {
       program_id: p.id,
       title: p.title,
       channel_id: p.youtube_channel_id,
-      previous_day_view_count: hasYesterday ? sumDelta : null,
-      recent_video_count: vids.length,
-      has_yesterday_baseline: hasYesterday,
+      previous_day_view_count: count24h > 0 ? sum24h : null,
+      recent_video_count: count24h,
     };
   });
 

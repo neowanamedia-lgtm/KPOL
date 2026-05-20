@@ -114,24 +114,28 @@ export function MediaInfoModal({
       ? `${formatViewsKo(subscriberCount)}명`
       : null;
 
-  // 최근 24시간 총조회수 (=previous_day_view_count)
+  // 최근 24시간 총조회수 (= snapshot 의 previous_day_view_count, 24h 업로드 영상 누적 합)
   const view24h = program?.daily_ranking?.previous_day_view_count ?? null;
   const view24hLabel = view24h != null ? `${formatViewsKo(view24h)}회` : null;
 
-  // 영상당 평균 조회수
-  const totalViews = program?.channel?.view_count ?? null;
-  const videoCount = program?.channel?.video_count ?? null;
-  const avgPerVideo =
-    totalViews != null && videoCount != null && videoCount > 0
-      ? totalViews / videoCount
+  // 24h 영상 수 — recent_video_count 가 24h 윈도우 수
+  const recent24hVideoCount =
+    program?.daily_ranking?.recent_video_count ?? null;
+
+  // 영상당 평균 조회수 = 24h 총 조회수 ÷ 24h 영상 수
+  const avg24h =
+    view24h != null &&
+    recent24hVideoCount != null &&
+    recent24hVideoCount > 0
+      ? view24h / recent24hVideoCount
       : null;
   const avgPerVideoLabel =
-    avgPerVideo != null ? `${formatViewsKo(Math.round(avgPerVideo))}회` : null;
+    avg24h != null ? `${formatViewsKo(Math.round(avg24h))}회` : null;
 
-  // 구독자 대비 조회수 비율 = 영상당 평균 조회수 ÷ 구독자 수 (%)
+  // 구독자 대비 조회수 비율 = 영상당 평균(24h) ÷ 구독자 수 × 100 %
   const viewSubRatioLabel = subscriberHidden
     ? null
-    : formatAvgPerSubPercent(avgPerVideo, subscriberCount);
+    : formatAvgPerSubPercent(avg24h, subscriberCount);
 
   // 최근 업로드 영상 — published_at desc 로 정렬, 상위 3건
   const recentVideos = (program?.recent_videos ?? [])
