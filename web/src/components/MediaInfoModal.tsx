@@ -7,19 +7,17 @@ import { CloseIcon, StarIcon, StarIconFilled } from "@/components/icons";
 /**
  * KPOL 미디어 프로그램 간단 정보 모달 — 중앙 compact 카드.
  *
- * 디자인:
- *   - 화면 중앙 정렬 (fixed inset-0 + flex items-center)
- *   - max-w-xs 좁은 카드. 줄 간격/패딩 최소화
- *   - 한 화면에 모두 보이도록 스크롤 없음
- *   - 라벨:값 inline 형식 (예: "진행자: 김명준")
+ * 랭킹 기준 = "최근 24시간 총조회수" (backend: previous_day_view_count).
  *
- * 표시 항목 (사용자 spec):
- *   [프로그램명]   [★] [×]
- *   진행자: 김명준
- *   고정 패널: a, b
- *   구독자 수: 152만명
- *   어제 조회수: 84만회
- *   [채널 방문하기]
+ * 표시 (값 없는 행은 자동 숨김):
+ *   - 진행자: (hosts + panelists 병렬 표시)
+ *   - 구독자 수
+ *   - 최근 24시간 총조회수
+ *   - 영상당 평균 조회수      (channel.view_count / channel.video_count)
+ *   - 조회수 대비 구독자 비율  (channel.subscriber_count / channel.view_count, %)
+ *   - 최근 업로드 영상 목록 (최대 3건, 클릭 시 YouTube 새 탭)
+ *
+ * 제거된 항목: "채널 방문하기" CTA.
  */
 
 interface Props {
@@ -35,6 +33,19 @@ function formatViewsKo(n: number | null | undefined): string {
     return `${(n / 100000000).toFixed(1).replace(/\.0$/, "")}억`;
   if (n >= 10000) return `${(n / 10000).toFixed(0)}만`;
   return n.toLocaleString("ko-KR");
+}
+
+/** 조회수 대비 구독자 비율 — sub/view × 100 %. < 1% 는 2자리, < 10% 는 1자리, ≥10% 는 정수. */
+function formatSubViewRatio(
+  subscriber: number | null | undefined,
+  view: number | null | undefined,
+): string | null {
+  if (subscriber == null || view == null || view <= 0) return null;
+  const pct = (subscriber / view) * 100;
+  if (!Number.isFinite(pct)) return null;
+  if (pct < 1) return `${pct.toFixed(2)}%`;
+  if (pct < 10) return `${pct.toFixed(1)}%`;
+  return `${Math.round(pct)}%`;
 }
 
 export function MediaInfoModal({
@@ -78,36 +89,54 @@ export function MediaInfoModal({
 
   if (!id) return null;
 
-  // 진행자 / 패널 — 쉼표 join, active=true 만
-  const hostNames = (program?.hosts ?? [])
-    .filter((h) => h.active !== false)
-    .map((h) => h.person_name)
-    .join(", ");
-  const panelistNames = (program?.panelists ?? [])
-    .filter((p) => p.active !== false)
-    .map((p) => p.person_name)
-    .join(", ");
+  // 진행자 + 고정 패널 병렬 — 단일 "진행자:" 행에 함께 표시
+  const peopleNames = [
+    ...(program?.hosts ?? [])
+      .filter((h) => h.active !== false)
+      .map((h) => h.person_name),
+    ...(program?.panelists ?? [])
+      .filter((p) => p.active !== false)
+      .map((p) => p.person_name),
+  ].join(", ");
 
   // 구독자 수
-  const subscriberLabel = program?.channel?.hidden_subscriber_count
+  const subscriberCount = program?.channel?.subscriber_count ?? null;
+  const subscriberHidden = program?.channel?.hidden_subscriber_count === true;
+  const subscriberLabel = subscriberHidden
     ? "비공개"
-    : program?.channel?.subscriber_count != null
-      ? `${formatViewsKo(program.channel.subscriber_count)}명`
+    : subscriberCount != null
+      ? `${formatViewsKo(subscriberCount)}명`
       : null;
 
-  // 어제 조회수
-  const previousDayViewLabel =
-    program?.daily_ranking?.previous_day_view_count != null
-      ? `${formatViewsKo(program.daily_ranking.previous_day_view_count)}회`
-      : null;
+  // 최근 24시간 총조회수 (=previous_day_view_count)
+  const view24h = program?.daily_ranking?.previous_day_view_count ?? null;
+  const view24hLabel = view24h != null ? `${formatViewsKo(view24h)}회` : null;
 
-  // 채널 URL
-  const visitUrl =
-    program?.channel?.official_url ??
-    program?.external_url ??
-    (program?.youtube_channel_id
-      ? `https://www.youtube.com/channel/${program.youtube_channel_id}`
-      : null);
+  // 영상당 평균 조회수
+  const totalViews = program?.channel?.view_count ?? null;
+  const videoCount = program?.channel?.video_count ?? null;
+  const avgPerVideo =
+    totalViews != null && videoCount != null && videoCount > 0
+      ? totalViews / videoCount
+      : null;
+  const avgPerVideoLabel =
+    avgPerVideo != null ? `${formatViewsKo(Math.round(avgPerVideo))}회` : null;
+
+  // 조회수 대비 구독자 비율
+  const subViewRatioLabel = subscriberHidden
+    ? null
+    : formatSubViewRatio(subscriberCount, totalViews);
+
+  // 최근 업로드 영상 — published_at desc 로 정렬, 상위 3건
+  const recentVideos = (program?.recent_videos ?? [])
+    .slice()
+    .sort((a, b) => {
+      const at = a.published_at ? Date.parse(a.published_at) : 0;
+      const bt = b.published_at ? Date.parse(b.published_at) : 0;
+      return bt - at;
+    })
+    .slice(0, 3);
+  const showRecentVideos = recentVideos.length > 0;
 
   const toggle = () => {
     if (program) onToggleInterest(program.id);
@@ -135,9 +164,7 @@ export function MediaInfoModal({
             </p>
           ) : (
             <>
-              {/* 헤더 행 — [타이틀 ★]  ......  [×]
-                  · 타이틀과 별은 한 그룹 (items-baseline 으로 inline 붙임)
-                  · X 만 우측 끝 (justify-between) */}
+              {/* 헤더 행 — [타이틀 ★]   [×] */}
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-baseline min-w-0">
                   <h2
@@ -175,18 +202,12 @@ export function MediaInfoModal({
                 </button>
               </div>
 
-              {/* 정보 라인 — 라벨:값 inline, wrap 허용 (잘림 ✗) */}
+              {/* 정보 라인 — 라벨:값 inline, wrap 허용 */}
               <div className="space-y-1 kpol-text-meta">
-                {hostNames ? (
+                {peopleNames ? (
                   <div>
                     <span className="text-fg-dim">진행자:</span>{" "}
-                    <span className="text-fg">{hostNames}</span>
-                  </div>
-                ) : null}
-                {panelistNames ? (
-                  <div>
-                    <span className="text-fg-dim">고정 패널:</span>{" "}
-                    <span className="text-fg">{panelistNames}</span>
+                    <span className="text-fg">{peopleNames}</span>
                   </div>
                 ) : null}
                 {subscriberLabel ? (
@@ -197,27 +218,52 @@ export function MediaInfoModal({
                     </span>
                   </div>
                 ) : null}
-                {previousDayViewLabel ? (
+                {view24hLabel ? (
                   <div>
-                    <span className="text-fg-dim">어제 조회수:</span>{" "}
+                    <span className="text-fg-dim">최근 24시간 총조회수:</span>{" "}
+                    <span className="text-fg tabular-nums">{view24hLabel}</span>
+                  </div>
+                ) : null}
+                {avgPerVideoLabel ? (
+                  <div>
+                    <span className="text-fg-dim">영상당 평균 조회수:</span>{" "}
                     <span className="text-fg tabular-nums">
-                      {previousDayViewLabel}
+                      {avgPerVideoLabel}
+                    </span>
+                  </div>
+                ) : null}
+                {subViewRatioLabel ? (
+                  <div>
+                    <span className="text-fg-dim">
+                      조회수 대비 구독자 비율:
+                    </span>{" "}
+                    <span className="text-fg tabular-nums">
+                      {subViewRatioLabel}
                     </span>
                   </div>
                 ) : null}
               </div>
 
-              {/* 채널 방문하기 — 텍스트 크기에 맞는 compact inline 버튼, 좌측 정렬 */}
-              {visitUrl ? (
+              {/* 최근 업로드 영상 목록 — snapshot 있을 때만 */}
+              {showRecentVideos ? (
                 <div className="mt-4">
-                  <a
-                    href={visitUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block px-2.5 py-1 rounded border border-accent-green/50 text-accent-green kpol-text-list-xs hover:bg-accent-green/10 active:opacity-70 transition-colors touch-manipulation"
-                  >
-                    채널 방문하기
-                  </a>
+                  <div className="text-fg-dim kpol-text-list-xs mb-1">
+                    최근 업로드 영상 목록
+                  </div>
+                  <ul className="space-y-1">
+                    {recentVideos.map((v) => (
+                      <li key={v.video_id} className="leading-snug">
+                        <a
+                          href={`https://www.youtube.com/watch?v=${v.video_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent-green kpol-text-meta hover:underline active:opacity-70 touch-manipulation block truncate"
+                        >
+                          {v.title ?? "(제목 없음)"}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </>

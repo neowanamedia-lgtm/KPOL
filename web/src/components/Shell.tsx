@@ -56,7 +56,7 @@ const BASIS_BY_TAB: Record<TabKey, string> = {
   people: "산정 기준: 순위 변동 · 24시 · 14:00 자동집계",
   "by-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
   "local-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
-  media: "산정 기준: 전날 조회수 자동 집계",
+  media: "산정 기준: 최근 24시간 총조회수 자동 집계",
 };
 
 const SCALE_KEY = "kpol-scale";
