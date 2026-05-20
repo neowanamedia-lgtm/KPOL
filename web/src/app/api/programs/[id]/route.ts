@@ -6,6 +6,8 @@ import type {
   MediaProgramPanelist,
   MediaProgramPersonLink,
   MediaProgramChannelStats,
+  MediaProgramDailyRanking,
+  MediaProgramRecentVideo,
 } from "@/lib/programs";
 
 export const dynamic = "force-dynamic";
@@ -167,12 +169,103 @@ export async function GET(
       }
     }
 
+    // 최신 일일 랭킹 (전날 조회수)
+    let daily_ranking: MediaProgramDailyRanking | null = null;
+    {
+      const { data: drRows } = await supabase
+        .from("media_program_daily_rankings")
+        .select(
+          "program_id, snapshot_date, previous_day_view_count, rank, rank_delta, recent_video_count, recent_window_days, formula_version",
+        )
+        .eq("program_id", id)
+        .order("snapshot_date", { ascending: false })
+        .limit(1);
+      if (drRows && drRows.length > 0) {
+        daily_ranking = drRows[0] as MediaProgramDailyRanking;
+      }
+    }
+
+    // 최근 영상 리스트 (최신 snapshot_date 기준 channel 영상, 14일 이내)
+    let recent_videos: MediaProgramRecentVideo[] | null = null;
+    if (program.youtube_channel_id) {
+      const { data: latestDateRow } = await supabase
+        .from("youtube_video_daily_snapshots")
+        .select("snapshot_date")
+        .eq("channel_id", program.youtube_channel_id)
+        .order("snapshot_date", { ascending: false })
+        .limit(1);
+      const latestSnapDate =
+        latestDateRow && latestDateRow.length > 0
+          ? (latestDateRow[0].snapshot_date as string)
+          : null;
+      if (latestSnapDate) {
+        // 오늘 snapshot + 어제 snapshot 동시 로드
+        const [todaySel, ydaySel] = await Promise.all([
+          supabase
+            .from("youtube_video_daily_snapshots")
+            .select(
+              "video_id, title, published_at, cumulative_view_count, cumulative_like_count, cumulative_comment_count, snapshot_date",
+            )
+            .eq("channel_id", program.youtube_channel_id)
+            .eq("snapshot_date", latestSnapDate)
+            .order("cumulative_view_count", {
+              ascending: false,
+              nullsFirst: false,
+            })
+            .limit(30),
+          supabase
+            .from("youtube_video_daily_snapshots")
+            .select("video_id, cumulative_view_count")
+            .eq("channel_id", program.youtube_channel_id)
+            .lt("snapshot_date", latestSnapDate)
+            .order("snapshot_date", { ascending: false })
+            .limit(200),
+        ]);
+        const ydayMap = new Map<string, number>();
+        for (const r of (ydaySel.data ?? []) as {
+          video_id: string;
+          cumulative_view_count: number | null;
+        }[]) {
+          if (r.cumulative_view_count != null && !ydayMap.has(r.video_id)) {
+            ydayMap.set(r.video_id, r.cumulative_view_count);
+          }
+        }
+        recent_videos = ((todaySel.data ?? []) as Array<{
+          video_id: string;
+          title: string | null;
+          published_at: string | null;
+          cumulative_view_count: number | null;
+          cumulative_like_count: number | null;
+          cumulative_comment_count: number | null;
+          snapshot_date: string;
+        }>).map((v) => {
+          const today = v.cumulative_view_count;
+          const yest = ydayMap.get(v.video_id) ?? null;
+          const delta =
+            today != null && yest != null ? Math.max(0, today - yest) : null;
+          return {
+            video_id: v.video_id,
+            title: v.title,
+            published_at: v.published_at,
+            cumulative_view_count: today,
+            cumulative_like_count: v.cumulative_like_count,
+            cumulative_comment_count: v.cumulative_comment_count,
+            yesterday_view_count: yest,
+            daily_view_delta: delta,
+            snapshot_date: v.snapshot_date,
+          };
+        });
+      }
+    }
+
     return NextResponse.json({
       ...program,
       hosts,
       panelists,
       person_links,
       channel,
+      daily_ranking,
+      recent_videos,
       errors: {
         hosts: hostsSel.error?.message ?? null,
         panelists: panelistsSel.error?.message ?? null,

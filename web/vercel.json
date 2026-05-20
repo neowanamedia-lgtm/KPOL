@@ -4,6 +4,10 @@
     {
       "path": "/api/rankings/media/rebuild?mode=apply",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/rankings/programs/snapshot?mode=apply",
+      "schedule": "0 5 * * *"
     }
   ]
 }

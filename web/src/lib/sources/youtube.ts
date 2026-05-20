@@ -556,3 +556,204 @@ export async function fetchYoutubeChannelsBatch(
   ) as YoutubeChannelItem[];
   return { items, requestUrl: maskUrl(url), raw: json };
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// playlistItems + videos.list — 일일 영상 스냅샷용
+// ──────────────────────────────────────────────────────────────────────
+
+/**
+ * YouTube 채널의 uploads 플레이리스트 ID 규약: UC... → UU...
+ * (channelId.replace(/^UC/, 'UU')) — channels.list?part=contentDetails 호출 절약.
+ */
+export function channelIdToUploadsPlaylistId(channelId: string): string {
+  if (channelId.startsWith("UC")) return "UU" + channelId.slice(2);
+  return channelId;
+}
+
+export interface YoutubeRecentVideo {
+  videoId: string;
+  channelId: string;
+  title: string;
+  publishedAt: string;
+}
+
+export interface YoutubeRecentUploadsResponse {
+  channelId: string;
+  uploadsPlaylistId: string;
+  videos: YoutubeRecentVideo[]; // sinceDays 필터 적용된 영상
+  requestUrl: string;
+  raw: unknown;
+}
+
+/**
+ * 채널의 최근 업로드 영상 (sinceDays 이내) — playlistItems.list 1회 (1 unit).
+ * maxResults=50 (API 최대). sinceDays 필터는 client-side.
+ */
+export async function fetchChannelRecentUploads(params: {
+  channelId: string;
+  sinceDays?: number; // default 14
+  maxResults?: number; // default 50, max 50
+}): Promise<YoutubeRecentUploadsResponse> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    throw new Error("YOUTUBE_API_KEY 환경 변수가 설정되어 있지 않습니다.");
+  }
+  if (!CHANNEL_ID_RE.test(params.channelId)) {
+    throw new Error(`channelId 형식 오류: ${params.channelId}`);
+  }
+  const sinceDays = params.sinceDays ?? 14;
+  const maxResults = Math.min(50, Math.max(1, params.maxResults ?? 50));
+  const uploadsPlaylistId = channelIdToUploadsPlaylistId(params.channelId);
+
+  const url = new URL(`${BASE_URL}/playlistItems`);
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("part", "snippet,contentDetails");
+  url.searchParams.set("playlistId", uploadsPlaylistId);
+  url.searchParams.set("maxResults", String(maxResults));
+
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(
+      `YouTube playlistItems HTTP ${res.status}: ${await res.text().catch(() => "")}`,
+    );
+  }
+  const json = (await res.json()) as Record<string, unknown>;
+  const itemsRaw = (json.items as unknown[] | undefined) ?? [];
+
+  const cutoff = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+  const videos: YoutubeRecentVideo[] = [];
+  for (const it of itemsRaw) {
+    const item = it as Record<string, unknown>;
+    const snippet = item.snippet as Record<string, unknown> | undefined;
+    const contentDetails = item.contentDetails as
+      | Record<string, unknown>
+      | undefined;
+    const videoId =
+      typeof contentDetails?.videoId === "string"
+        ? contentDetails.videoId
+        : null;
+    if (!videoId) continue;
+    const publishedAt =
+      typeof contentDetails?.videoPublishedAt === "string"
+        ? contentDetails.videoPublishedAt
+        : typeof snippet?.publishedAt === "string"
+          ? snippet.publishedAt
+          : null;
+    if (!publishedAt) continue;
+    const pubMs = Date.parse(publishedAt);
+    if (!Number.isFinite(pubMs) || pubMs < cutoff) continue;
+    const title =
+      typeof snippet?.title === "string" ? snippet.title : "(no title)";
+    videos.push({
+      videoId,
+      channelId: params.channelId,
+      title,
+      publishedAt,
+    });
+  }
+
+  return {
+    channelId: params.channelId,
+    uploadsPlaylistId,
+    videos,
+    requestUrl: maskUrl(url),
+    raw: json,
+  };
+}
+
+export interface YoutubeVideoStats {
+  videoId: string;
+  title: string | null;
+  publishedAt: string | null;
+  viewCount: number | null;
+  likeCount: number | null;
+  commentCount: number | null;
+  raw: Record<string, unknown>;
+}
+
+export interface YoutubeVideosStatsResponse {
+  items: YoutubeVideoStats[];
+  requestUrl: string;
+  raw: unknown;
+}
+
+/**
+ * videos.list?id=v1,v2,...&part=snippet,statistics — 1 unit/call. id 최대 50.
+ */
+export async function fetchVideosStats(
+  videoIds: string[],
+): Promise<YoutubeVideosStatsResponse> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    throw new Error("YOUTUBE_API_KEY 환경 변수가 설정되어 있지 않습니다.");
+  }
+  const cleaned = Array.from(new Set(videoIds.map((s) => s.trim()).filter(Boolean)));
+  if (cleaned.length === 0) {
+    return { items: [], requestUrl: "", raw: { empty: true } };
+  }
+  if (cleaned.length > 50) {
+    throw new Error(
+      `videos.list 1회 호출 50개 초과 (${cleaned.length}) — chunk 단위로 분할 호출 필요`,
+    );
+  }
+
+  const url = new URL(`${BASE_URL}/videos`);
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("part", "snippet,statistics");
+  url.searchParams.set("id", cleaned.join(","));
+  url.searchParams.set("maxResults", String(cleaned.length));
+
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(
+      `YouTube videos.list HTTP ${res.status}: ${await res.text().catch(() => "")}`,
+    );
+  }
+  const json = (await res.json()) as Record<string, unknown>;
+  const itemsRaw = (json.items as unknown[] | undefined) ?? [];
+  const toNum = (v: unknown): number | null => {
+    if (v == null) return null;
+    const n = typeof v === "string" ? Number(v) : (v as number);
+    return Number.isFinite(n) ? n : null;
+  };
+  const items: YoutubeVideoStats[] = itemsRaw.map((raw) => {
+    const it = raw as Record<string, unknown>;
+    const snippet = it.snippet as Record<string, unknown> | undefined;
+    const stats = it.statistics as Record<string, unknown> | undefined;
+    return {
+      videoId: String(it.id ?? ""),
+      title: typeof snippet?.title === "string" ? snippet.title : null,
+      publishedAt:
+        typeof snippet?.publishedAt === "string" ? snippet.publishedAt : null,
+      viewCount: toNum(stats?.viewCount),
+      likeCount: toNum(stats?.likeCount),
+      commentCount: toNum(stats?.commentCount),
+      raw: it,
+    };
+  });
+  return { items, requestUrl: maskUrl(url), raw: json };
+}
+
+/** id 가 50개 초과면 chunk 단위로 분할해 videos.list 여러 번 호출. */
+export async function fetchVideosStatsChunked(
+  videoIds: string[],
+): Promise<YoutubeVideosStatsResponse> {
+  const cleaned = Array.from(new Set(videoIds.map((s) => s.trim()).filter(Boolean)));
+  if (cleaned.length === 0) {
+    return { items: [], requestUrl: "", raw: { empty: true } };
+  }
+  const chunkSize = 50;
+  const allItems: YoutubeVideoStats[] = [];
+  const requestUrls: string[] = [];
+  for (let i = 0; i < cleaned.length; i += chunkSize) {
+    const chunk = cleaned.slice(i, i + chunkSize);
+    const r = await fetchVideosStats(chunk);
+    allItems.push(...r.items);
+    requestUrls.push(r.requestUrl);
+  }
+  return {
+    items: allItems,
+    requestUrl: requestUrls.join(" | "),
+    raw: { chunks: requestUrls.length },
+  };
+}

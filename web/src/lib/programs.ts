@@ -124,6 +124,39 @@ export interface MediaProgramRecentActivity {
   daily_view_series: number[] | null; // sparkline 용
 }
 
+/**
+ * "전날 조회수" 일일 랭킹 — media_program_daily_rankings 최신 행.
+ *
+ * previous_day_view_count = 채널 최근 14일 영상의 24h 누적 조회수 합.
+ * rank_score = previous_day_view_count (단일 지표, 다른 지표 혼합 ✗).
+ * rank_delta = yesterday_rank - today_rank (positive=up, negative=down, null=new).
+ */
+export interface MediaProgramDailyRanking {
+  program_id: string;
+  snapshot_date: string;
+  previous_day_view_count: number | null;
+  rank: number | null;
+  rank_delta: number | null;
+  recent_video_count: number;
+  recent_window_days: number;
+  formula_version: string;
+}
+
+/**
+ * ProgramDetail 의 "최근 영상" 섹션 — youtube_video_daily_snapshots 최신 snapshot_date 의 channel 영상.
+ */
+export interface MediaProgramRecentVideo {
+  video_id: string;
+  title: string | null;
+  published_at: string | null;
+  cumulative_view_count: number | null;
+  cumulative_like_count: number | null;
+  cumulative_comment_count: number | null;
+  yesterday_view_count: number | null;
+  daily_view_delta: number | null; // today - yesterday
+  snapshot_date: string;
+}
+
 /** Detail API 가 반환하는 조인 결과 */
 export interface MediaProgramFull extends MediaProgram {
   hosts: MediaProgramHost[];
@@ -131,6 +164,10 @@ export interface MediaProgramFull extends MediaProgram {
   person_links: MediaProgramPersonLink[];
   channel?: MediaProgramChannelStats | null;
   recent_activity?: MediaProgramRecentActivity | null;
+  /** 최신 일일 랭킹 (전날 조회수 기반). 첫 snapshot 전엔 null. */
+  daily_ranking?: MediaProgramDailyRanking | null;
+  /** 최신 snapshot_date 기준 채널 최근 14일 영상 (조회수 desc). */
+  recent_videos?: MediaProgramRecentVideo[] | null;
 }
 
 /** 인물 → 프로그램 역방향 조회 결과 (UI 의 person → programs 화면용) */
