@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { YoutubeSection } from "./YoutubeSection";
 import { YoutubeCandidateSection } from "./YoutubeCandidateSection";
 import { MediaRankingSection } from "./MediaRankingSection";
+import { ProgramsAdminSection } from "./ProgramsAdminSection";
 
 /**
  * /data-test — KPOL 내부 데이터 연결 검증 페이지.
@@ -625,6 +626,7 @@ export default function DataTestPage() {
       <YoutubeCandidateSection adminKey={adminKey} onSaved={load} />
       <YoutubeSection adminKey={adminKey} onSaved={load} />
       <MediaRankingSection adminKey={adminKey} />
+      <ProgramsAdminSection adminKey={adminKey} />
     </main>
   );
 
