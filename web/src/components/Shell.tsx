@@ -314,9 +314,17 @@ export function Shell() {
           )}
         </main>
 
-        {/* ── 하단 고정: 컨트롤 바 (safe-area 바로 위에 얇게 붙음) ── */}
+        {/* ── 하단 고정: 컨트롤 바 (safe-area 바로 위에 얇게 붙음) ──
+             미디어 정보 모달이 열렸을 때만 z 를 backdrop(z-40)·modal(z-50) 위로 올려
+             글자 크기 +/- · 테마 · 공유 버튼이 막히지 않게 한다.
+             PersonDetail (immersive z-50 bg-bg full-screen) 진입 시는 z-20 유지해서
+             nav 가 detail 위로 떠올라 immersion 깨지지 않게 한다. */}
         <nav
-          className="shrink-0 bg-bg relative z-20"
+          className={`shrink-0 bg-bg relative ${
+            activeTab === "media" && mediaProgramId != null
+              ? "z-[60]"
+              : "z-20"
+          }`}
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <div className="grid grid-cols-3 items-end h-16 px-4 pb-1.5">

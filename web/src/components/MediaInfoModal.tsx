@@ -102,6 +102,59 @@ export function MediaInfoModal({
     };
   }, [id]);
 
+  // ── 진단 로그 — 정보 누락 원인 추적 ─────────────────────────────────
+  useEffect(() => {
+    if (loading || !program) return;
+    const diag = {
+      program_id: program.id,
+      title: program.title,
+      has_youtube_channel_id: !!program.youtube_channel_id,
+      youtube_channel_id: program.youtube_channel_id ?? null,
+      youtube_title_filter: program.youtube_title_filter ?? null,
+      has_channel_data: !!program.channel,
+      subscriber_count: program.channel?.subscriber_count ?? null,
+      subscriber_hidden: program.channel?.hidden_subscriber_count ?? false,
+      has_daily_ranking: !!program.daily_ranking,
+      previous_day_view_count:
+        program.daily_ranking?.previous_day_view_count ?? null,
+      recent_video_count_24h: program.daily_ranking?.recent_video_count ?? null,
+      recent_videos_returned: (program.recent_videos ?? []).length,
+      hosts: (program.hosts ?? []).length,
+      panelists: (program.panelists ?? []).length,
+    };
+    const missing: string[] = [];
+    if (!program.youtube_channel_id) {
+      missing.push("youtube_channel_id 없음 → channel/daily_ranking/영상 모두 N/A");
+    }
+    if (program.youtube_channel_id && !program.channel) {
+      missing.push("media_sources_raw 에 채널 데이터 없음 → 구독자/누적조회 N/A");
+    }
+    if (
+      program.channel &&
+      program.channel.subscriber_count == null &&
+      !program.channel.hidden_subscriber_count
+    ) {
+      missing.push("subscriber_count null (비공개 아님) → 구독자/비율 N/A");
+    }
+    if (program.youtube_channel_id && !program.daily_ranking) {
+      missing.push("daily_ranking 없음 → snapshot 미실행이거나 채널 ID 추가 후 snapshot 안 돌림");
+    }
+    if (
+      program.daily_ranking &&
+      program.daily_ranking.previous_day_view_count == null
+    ) {
+      missing.push(
+        program.youtube_title_filter
+          ? `24h 내 업로드 영상 0건 — title_filter "${program.youtube_title_filter}" 가 좁거나 채널 24h 휴면`
+          : "24h 내 업로드 영상 0건 — 채널이 어제 업로드 없음",
+      );
+    }
+    console.log("[KPOL MediaModal]", program.title, diag);
+    if (missing.length > 0) {
+      console.log("[KPOL MediaModal] 정보 누락 원인:", missing);
+    }
+  }, [loading, program]);
+
   if (!id) return null;
 
   // 진행자 + 고정 패널 병렬 — 단일 "진행자:" 행에 함께 표시
@@ -168,10 +221,10 @@ export function MediaInfoModal({
         aria-label="닫기"
         className="fixed inset-0 z-40 bg-black/60 cursor-pointer"
       />
-      {/* Compact center modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-6 pointer-events-none">
+      {/* Compact center modal — 모바일 화면에 거의 꽉 차게 (좌우 12px 만 여백) */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-3 pointer-events-none">
         <div
-          className="bg-elev border border-border-strong rounded-lg w-full max-w-xs px-4 py-4 pointer-events-auto shadow-xl"
+          className="bg-elev border border-border-strong rounded-lg w-full max-w-md px-4 py-4 pointer-events-auto shadow-xl"
           role="dialog"
           aria-modal="true"
         >
