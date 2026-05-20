@@ -6,25 +6,33 @@ import type {
   MediaProgramPanelist,
   MediaProgramPersonLink,
   MediaProgramChannelStats,
-  MediaProgramDailyRanking,
   MediaProgramRecentVideo,
 } from "@/lib/programs";
 import { CloseIcon, StarIcon, StarIconFilled } from "@/components/icons";
 import { RankSparkline } from "@/components/RankSparkline";
 
 /**
- * KPOL Media 프로그램 상세 화면.
+ * KPOL Media 프로그램 상세 화면 — immersive 콘텐츠 프로필 구조.
  *
- * 랭킹 기준 = "전날 조회수" 단일 지표 (kpol-data-ingest-safety v2).
- *   - 상단 강조: 전날 조회수 · 순위 · 변동
- *   - 최근 2주 영상 리스트 (실 데이터)
- *   - 누적 채널 지표 (구독자/총 조회 등) 는 맨 아래 보조 정보
+ * 상단 (헤더 — 콘텐츠 소개 중심):
+ *   [×]
+ *   [Title] [★]
+ *   [짧은 소개 문장]
+ *   [방송사 · 채널명]  (중복이면 자동 dedup)
+ *   [편성 시간]
  *
- * PersonDetail 의 구조/톤/간격 그대로 미러:
- *   - fixed inset-0 z-50 bg-bg flex flex-col
- *   - 우상단 X close
- *   - 헤더 (썸네일 + 타이틀)
- *   - SectionTitle (text-accent-green) 으로 구분
+ * 본문 (밀도 정리):
+ *   - 영향력 추이 sparkline (recent_activity.daily_view_series 가 ≥2일 때만)
+ *   - 최근 영상 · 최근 2주 (snapshot 있으면 표시)
+ *   - 진행자 / 고정 패널 / 최근 출연·관련 인물
+ *   - 채널 누적 지표 (참고, channel 데이터 있을 때만 — 맨 아래)
+ *
+ * 제거된 영역 (사용자 지시):
+ *   - 상단 썸네일
+ *   - "전날 조회수 · 랭킹 기준" DailyRankingHeadline
+ *   - "일일 스냅샷 준비 중" placeholder
+ *   - ProfileRow (상태/시작/종영/카테고리 등 — 의미 약함)
+ *   - 본문 description (헤더로 이동)
  */
 
 interface Props {
@@ -36,13 +44,9 @@ interface Props {
 
 function formatViews(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "-";
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1).replace(/\.0$/, "")}억`;
+  if (n >= 100000000)
+    return `${(n / 100000000).toFixed(1).replace(/\.0$/, "")}억`;
   if (n >= 10000) return `${(n / 10000).toFixed(0)}만`;
-  return n.toLocaleString("ko-KR");
-}
-
-function formatViewsExact(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "-";
   return n.toLocaleString("ko-KR");
 }
 
@@ -57,21 +61,20 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
-function RankDeltaInline({ value }: { value: number | null }) {
-  if (value == null) {
-    return <span className="text-signal-flat tabular-nums">– 0</span>;
-  }
-  if (value > 0) {
-    return (
-      <span className="text-signal-up tabular-nums font-medium">▲ +{value}</span>
-    );
-  }
-  if (value < 0) {
-    return (
-      <span className="text-signal-down tabular-nums font-medium">▼ {value}</span>
-    );
-  }
-  return <span className="text-signal-flat tabular-nums">– 0</span>;
+/**
+ * "MBN · MBN" 같은 중복 표기 방지 — 동일 값이면 한 번만.
+ */
+function buildBroadcasterChannelLine(
+  broadcaster: string | null,
+  channelName: string | null,
+): string {
+  const b = (broadcaster ?? "").trim();
+  const c = (channelName ?? "").trim();
+  if (!b && !c) return "";
+  if (!b) return c;
+  if (!c) return b;
+  if (b === c) return b;
+  return `${b} · ${c}`;
 }
 
 export function ProgramDetail({
@@ -85,33 +88,28 @@ export function ProgramDetail({
     title,
     broadcaster,
     channel_name,
-    thumbnail_url,
-    category,
     description,
     upload_frequency,
-    started_at,
-    ended_at,
-    active_status,
-    political_alignment,
-    external_url,
     hosts,
     panelists,
     person_links,
     channel,
-    daily_ranking,
-    recent_videos,
     recent_activity,
+    recent_videos,
   } = program;
 
-  // 헤더 썸네일 우선순위
-  const headerThumb = channel?.thumbnail_url ?? thumbnail_url ?? null;
+  const broadcasterChannelLine = buildBroadcasterChannelLine(
+    broadcaster ?? null,
+    channel_name ?? null,
+  );
 
-  // sparkline history — recent_activity.daily_view_series 우선
+  // sparkline — recent_activity.daily_view_series ≥2 일 때만 섹션 표시
   const sparklineHistory = recent_activity?.daily_view_series ?? [];
+  const showSparkline = sparklineHistory.length >= 2;
 
   return (
     <div className="fixed inset-0 z-50 bg-bg flex flex-col">
-      {/* ── 헤더 ── */}
+      {/* ── 헤더 — 콘텐츠 소개 중심 (썸네일 없음) ── */}
       <header className="shrink-0 px-6 pt-2 pb-5">
         <div className="flex justify-end -mr-3 mb-1">
           <button
@@ -124,122 +122,106 @@ export function ProgramDetail({
           </button>
         </div>
 
-        <div className="flex items-end gap-3">
-          {headerThumb ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={headerThumb}
-              alt={title}
-              className="w-[112px] h-[112px] rounded-md object-cover bg-elev shrink-0"
-            />
-          ) : (
-            <div
-              className="w-[112px] h-[112px] rounded-md bg-elev flex items-center justify-center text-fg-muted text-[40px] font-medium select-none shrink-0"
-              aria-hidden
-            >
-              {title.charAt(0)}
-            </div>
-          )}
-          <div className="flex flex-col gap-1 pb-1 min-w-0">
-            <div className="flex items-center gap-1 min-w-0">
-              <h1
-                className={`text-[22px] font-medium leading-tight truncate ${isInterested ? "text-accent-green" : "text-fg"}`}
-              >
-                {title}
-              </h1>
-              <button
-                type="button"
-                onClick={toggle}
-                aria-label={isInterested ? "관심 해제" : "관심 등록"}
-                aria-pressed={isInterested}
-                className={`w-8 h-8 flex items-center justify-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
-                  isInterested
-                    ? "text-accent-green"
-                    : "text-fg-dim hover:text-fg-muted"
-                }`}
-              >
-                {isInterested ? (
-                  <StarIconFilled className="w-[18px] h-[18px] pointer-events-none" />
-                ) : (
-                  <StarIcon className="w-[18px] h-[18px] pointer-events-none" />
-                )}
-              </button>
-            </div>
-            <div className="text-fg-dim kpol-text-list-xs truncate">
-              {[broadcaster, channel_name].filter(Boolean).join(" · ") || "—"}
-            </div>
-          </div>
+        {/* 타이틀 + 별 (PersonDetail 동일 패턴) */}
+        <div className="flex items-center gap-1 min-w-0">
+          <h1
+            className={`text-[22px] font-medium leading-tight truncate ${
+              isInterested ? "text-accent-green" : "text-fg"
+            }`}
+          >
+            {title}
+          </h1>
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={isInterested ? "관심 해제" : "관심 등록"}
+            aria-pressed={isInterested}
+            className={`w-8 h-8 flex items-center justify-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
+              isInterested
+                ? "text-accent-green"
+                : "text-fg-dim hover:text-fg-muted"
+            }`}
+          >
+            {isInterested ? (
+              <StarIconFilled className="w-[18px] h-[18px] pointer-events-none" />
+            ) : (
+              <StarIcon className="w-[18px] h-[18px] pointer-events-none" />
+            )}
+          </button>
         </div>
+
+        {/* 짧은 소개 문장 — 타이틀 바로 아래 */}
+        {description ? (
+          <p className="text-fg-muted kpol-text-detail mt-2 leading-relaxed">
+            {description}
+          </p>
+        ) : null}
+
+        {/* 방송사 · 채널명 (중복 dedup) */}
+        {broadcasterChannelLine ? (
+          <div className="text-fg-dim kpol-text-list-xs mt-3 truncate">
+            {broadcasterChannelLine}
+          </div>
+        ) : null}
+
+        {/* 편성 시간 */}
+        {upload_frequency ? (
+          <div className="text-fg-dim kpol-text-list-xs mt-0.5 truncate">
+            {upload_frequency}
+          </div>
+        ) : null}
       </header>
 
       {/* ── 본문 ── */}
       <main className="flex-1 overflow-y-auto px-6 pb-10">
-        {/* 1) 전날 조회수 강조 — 단일 지표 랭킹 기준 */}
-        <DailyRankingHeadline ranking={daily_ranking ?? null} />
-
-        {/* 2) 정보표 */}
-        <section className="pt-2 pb-6 kpol-text-detail space-y-0.5">
-          <ProfileRow label="방송사" value={broadcaster ?? "-"} />
-          <ProfileRow label="채널" value={channel_name ?? "-"} />
-          <ProfileRow label="분류" value={category ?? "-"} />
-          <ProfileRow label="편성" value={upload_frequency ?? "-"} />
-          <ProfileRow
-            label="상태"
-            value={
-              active_status === "active"
-                ? "방송 중"
-                : active_status === "ended"
-                  ? "종영"
-                  : active_status === "on_hiatus"
-                    ? "휴방"
-                    : active_status
-            }
-          />
-          <ProfileRow label="시작" value={formatDate(started_at)} />
-          {ended_at ? (
-            <ProfileRow label="종영" value={formatDate(ended_at)} />
-          ) : null}
-          {political_alignment ? (
-            <ProfileRow label="성향" value={political_alignment} />
-          ) : null}
-          {external_url ? (
-            <div className="flex gap-3 leading-snug">
-              <span className="text-fg-dim w-16 shrink-0">공식</span>
-              <a
-                href={external_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-fg hover:text-accent-green flex-1 min-w-0 truncate"
-              >
-                {external_url}
-              </a>
-            </div>
-          ) : null}
-        </section>
-
-        {description ? (
-          <section className="pb-6 kpol-text-detail">
-            <p className="text-fg-muted whitespace-pre-wrap leading-relaxed">
-              {description}
-            </p>
+        {/* 영향력 추이 — 데이터 있을 때만 (≥2일 누적) */}
+        {showSparkline ? (
+          <section className="pt-2 pb-6">
+            <SectionTitle>영향력 추이 · 최근 2주</SectionTitle>
+            <RankSparkline history={sparklineHistory} height={120} tone="fg" />
+            {recent_activity ? (
+              <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 kpol-text-list-xs text-fg-dim tabular-nums">
+                {recent_activity.upload_count != null ? (
+                  <div className="flex gap-1.5">
+                    <dt>업로드</dt>
+                    <dd className="text-fg font-medium">
+                      {recent_activity.upload_count}회
+                    </dd>
+                  </div>
+                ) : null}
+                {recent_activity.avg_view_count != null ? (
+                  <div className="flex gap-1.5">
+                    <dt>평균 조회</dt>
+                    <dd className="text-fg font-medium">
+                      {formatViews(recent_activity.avg_view_count)}
+                    </dd>
+                  </div>
+                ) : null}
+                {recent_activity.max_view_count != null ? (
+                  <div className="flex gap-1.5">
+                    <dt>최고</dt>
+                    <dd className="text-fg font-medium">
+                      {formatViews(recent_activity.max_view_count)}
+                    </dd>
+                  </div>
+                ) : null}
+                {recent_activity.last_upload_at ? (
+                  <div className="flex gap-1.5">
+                    <dt>최근</dt>
+                    <dd className="text-fg font-medium">
+                      {formatDate(recent_activity.last_upload_at)}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
           </section>
         ) : null}
 
-        {/* 3) 영향력 추이 sparkline — 데이터 누적 후 표시 */}
-        <section className="pt-5 pb-6">
-          <SectionTitle>영향력 추이 · 최근 2주</SectionTitle>
-          <RankSparkline history={sparklineHistory} height={120} tone="fg" />
-          {sparklineHistory.length < 2 ? (
-            <p className="mt-3 kpol-text-list-xs text-fg-dim">
-              일일 snapshot 누적 후 표시됩니다 (최소 2일 필요).
-            </p>
-          ) : null}
-        </section>
-
-        {/* 4) 최근 영상 · 최근 2주 — youtube_video_daily_snapshots 최신 */}
+        {/* 최근 영상 — snapshot 데이터 있을 때만 */}
         <RecentVideosSection videos={recent_videos ?? null} />
 
-        {/* 5) 진행자 */}
+        {/* 진행자 */}
         <section className="pt-5">
           <SectionTitle>진행자</SectionTitle>
           {hosts.length > 0 ? (
@@ -253,7 +235,7 @@ export function ProgramDetail({
           )}
         </section>
 
-        {/* 6) 고정 패널 */}
+        {/* 고정 패널 */}
         <section className="pt-5">
           <SectionTitle>고정 패널</SectionTitle>
           {panelists.length > 0 ? (
@@ -267,7 +249,7 @@ export function ProgramDetail({
           )}
         </section>
 
-        {/* 7) 최근 출연 / 관련 인물 */}
+        {/* 최근 출연 / 관련 인물 */}
         <section className="pt-5">
           <SectionTitle>최근 출연 / 관련 인물</SectionTitle>
           {person_links.length > 0 ? (
@@ -283,7 +265,7 @@ export function ProgramDetail({
           )}
         </section>
 
-        {/* 8) YouTube 채널 누적 지표 — 보조 정보 (맨 아래로) */}
+        {/* 채널 누적 지표 — 참고, 맨 아래 */}
         {channel ? <ChannelStatsSection channel={channel} /> : null}
       </main>
     </div>
@@ -311,85 +293,50 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DailyRankingHeadline({
-  ranking,
-}: {
-  ranking: MediaProgramDailyRanking | null;
-}) {
-  if (!ranking || ranking.previous_day_view_count == null) {
-    return (
-      <section className="pt-2 pb-4">
-        <SectionTitle>전날 조회수 · 랭킹 기준</SectionTitle>
-        <p className="text-fg-dim kpol-text-detail">
-          일일 snapshot 준비 중 — 14:00 KST 자동 산정 후 표시됩니다.
-        </p>
-      </section>
-    );
-  }
-  return (
-    <section className="pt-2 pb-5">
-      <SectionTitle>전날 조회수 · 랭킹 기준</SectionTitle>
-      <div className="flex items-baseline gap-3 flex-wrap">
-        <span className="text-fg text-[28px] font-medium tabular-nums leading-none">
-          {formatViewsExact(ranking.previous_day_view_count)}
-        </span>
-        <span className="text-fg-dim kpol-text-list-xs">조회</span>
-        {ranking.rank != null ? (
-          <span className="text-accent-green kpol-text-meta tabular-nums">
-            #{ranking.rank}위
-          </span>
-        ) : null}
-        <span className="kpol-text-meta">
-          <RankDeltaInline value={ranking.rank_delta} />
-        </span>
-      </div>
-      <p className="mt-2 kpol-text-list-xs text-fg-dim">
-        최근 {ranking.recent_window_days}일 영상 {ranking.recent_video_count}개의
-        24h 누적 조회수 합 · {formatDate(ranking.snapshot_date)} 기준
-      </p>
-    </section>
-  );
-}
-
 function RecentVideosSection({
   videos,
 }: {
   videos: MediaProgramRecentVideo[] | null;
 }) {
+  if (!videos || videos.length === 0) {
+    return (
+      <section className="pt-5">
+        <SectionTitle>최근 영상 · 최근 2주</SectionTitle>
+        <p className="text-fg-dim kpol-text-detail">영상 정보 없음</p>
+      </section>
+    );
+  }
   return (
     <section className="pt-5">
       <SectionTitle>최근 영상 · 최근 2주</SectionTitle>
-      {videos && videos.length > 0 ? (
-        <ul className="space-y-3">
-          {videos.slice(0, 20).map((v) => (
-            <li key={v.video_id} className="py-1 border-b border-border/40 last:border-0">
-              <a
-                href={`https://www.youtube.com/watch?v=${v.video_id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-fg kpol-text-meta leading-snug hover:text-accent-green block"
-              >
-                {v.title ?? "(제목 없음)"}
-              </a>
-              <div className="text-fg-dim kpol-text-list-xs mt-0.5 tabular-nums flex flex-wrap gap-x-2.5 gap-y-0.5">
-                {v.published_at ? (
-                  <span>{formatDate(v.published_at)}</span>
-                ) : null}
-                <span>총 {formatViews(v.cumulative_view_count)}</span>
-                {v.daily_view_delta != null ? (
-                  <span className="text-fg">
-                    +{formatViews(v.daily_view_delta)} (24h)
-                  </span>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-fg-dim kpol-text-detail">
-          영상 데이터 준비 중 (YouTube snapshot 후 표시)
-        </p>
-      )}
+      <ul className="space-y-3">
+        {videos.slice(0, 20).map((v) => (
+          <li
+            key={v.video_id}
+            className="py-1 border-b border-border/40 last:border-0"
+          >
+            <a
+              href={`https://www.youtube.com/watch?v=${v.video_id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-fg kpol-text-meta leading-snug hover:text-accent-green block"
+            >
+              {v.title ?? "(제목 없음)"}
+            </a>
+            <div className="text-fg-dim kpol-text-list-xs mt-0.5 tabular-nums flex flex-wrap gap-x-2.5 gap-y-0.5">
+              {v.published_at ? (
+                <span>{formatDate(v.published_at)}</span>
+              ) : null}
+              <span>총 {formatViews(v.cumulative_view_count)}</span>
+              {v.daily_view_delta != null ? (
+                <span className="text-fg">
+                  +{formatViews(v.daily_view_delta)} (24h)
+                </span>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
