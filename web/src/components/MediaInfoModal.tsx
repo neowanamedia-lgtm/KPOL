@@ -35,17 +35,18 @@ function formatViewsKo(n: number | null | undefined): string {
   return n.toLocaleString("ko-KR");
 }
 
-/** 조회수 대비 구독자 비율 — sub/view × 100 %. < 1% 는 2자리, < 10% 는 1자리, ≥10% 는 정수. */
-function formatSubViewRatio(
-  subscriber: number | null | undefined,
+/** 구독자 대비 조회수 비율 — view/subscriber, "N배" 단위. */
+function formatViewSubRatio(
   view: number | null | undefined,
+  subscriber: number | null | undefined,
 ): string | null {
-  if (subscriber == null || view == null || view <= 0) return null;
-  const pct = (subscriber / view) * 100;
-  if (!Number.isFinite(pct)) return null;
-  if (pct < 1) return `${pct.toFixed(2)}%`;
-  if (pct < 10) return `${pct.toFixed(1)}%`;
-  return `${Math.round(pct)}%`;
+  if (view == null || subscriber == null || subscriber <= 0) return null;
+  const ratio = view / subscriber;
+  if (!Number.isFinite(ratio)) return null;
+  if (ratio >= 100) return `${Math.round(ratio).toLocaleString("ko-KR")}배`;
+  if (ratio >= 10) return `${ratio.toFixed(1).replace(/\.0$/, "")}배`;
+  if (ratio >= 1) return `${ratio.toFixed(1)}배`;
+  return `${ratio.toFixed(2)}배`;
 }
 
 export function MediaInfoModal({
@@ -122,10 +123,10 @@ export function MediaInfoModal({
   const avgPerVideoLabel =
     avgPerVideo != null ? `${formatViewsKo(Math.round(avgPerVideo))}회` : null;
 
-  // 조회수 대비 구독자 비율
-  const subViewRatioLabel = subscriberHidden
+  // 구독자 대비 조회수 비율
+  const viewSubRatioLabel = subscriberHidden
     ? null
-    : formatSubViewRatio(subscriberCount, totalViews);
+    : formatViewSubRatio(totalViews, subscriberCount);
 
   // 최근 업로드 영상 — published_at desc 로 정렬, 상위 3건
   const recentVideos = (program?.recent_videos ?? [])
@@ -167,11 +168,7 @@ export function MediaInfoModal({
               {/* 헤더 행 — [타이틀 ★]   [×] */}
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-baseline min-w-0">
-                  <h2
-                    className={`text-[16px] font-medium leading-tight ${
-                      isInterested ? "text-accent-green" : "text-fg"
-                    }`}
-                  >
+                  <h2 className="text-[16px] font-medium leading-tight text-accent-green">
                     {program.title}
                   </h2>
                   <button
@@ -232,13 +229,13 @@ export function MediaInfoModal({
                     </span>
                   </div>
                 ) : null}
-                {subViewRatioLabel ? (
+                {viewSubRatioLabel ? (
                   <div>
                     <span className="text-fg-dim">
-                      조회수 대비 구독자 비율:
+                      구독자 대비 조회수 비율:
                     </span>{" "}
                     <span className="text-fg tabular-nums">
-                      {subViewRatioLabel}
+                      {viewSubRatioLabel}
                     </span>
                   </div>
                 ) : null}
