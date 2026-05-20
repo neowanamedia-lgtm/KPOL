@@ -207,16 +207,18 @@ export function MediaInfoModal({
                 ) : null}
               </div>
 
-              {/* 채널 방문하기 CTA */}
+              {/* 채널 방문하기 — 텍스트 크기에 맞는 compact inline 버튼, 좌측 정렬 */}
               {visitUrl ? (
-                <a
-                  href={visitUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block mt-4 px-3 py-2 rounded-md bg-accent-green/10 border border-accent-green/50 text-accent-green text-center kpol-text-meta font-medium active:opacity-70 transition-opacity touch-manipulation"
-                >
-                  채널 방문하기
-                </a>
+                <div className="mt-4">
+                  <a
+                    href={visitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block px-2.5 py-1 rounded border border-accent-green/50 text-accent-green kpol-text-list-xs hover:bg-accent-green/10 active:opacity-70 transition-colors touch-manipulation"
+                  >
+                    채널 방문하기
+                  </a>
+                </div>
               ) : null}
             </>
           )}
