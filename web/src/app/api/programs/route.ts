@@ -16,7 +16,9 @@ export const runtime = "nodejs";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+// 후보 통과 기준 — sub 만으로 자르지 않음. 둘 중 하나만 만족하면 통과.
 const MIN_SUBSCRIBER = 1000;
+const MIN_VIEW_COUNT_FOR_LOW_SUB = 50_000;
 
 interface ProgramListItem
   extends Pick<
@@ -42,6 +44,15 @@ function extractSubscriberCount(rp: unknown): number | null {
   if (!stats) return null;
   if (stats.hiddenSubscriberCount === true) return null;
   const raw = stats.subscriberCount;
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function extractViewCount(rp: unknown): number | null {
+  if (!rp || typeof rp !== "object") return null;
+  const stats = (rp as { statistics?: Record<string, unknown> }).statistics;
+  const raw = stats?.viewCount;
   if (raw == null) return null;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -89,7 +100,12 @@ export async function GET(req: Request) {
   const candidates: ProgramListItem[] = [];
   for (const r of rows) {
     const sub = extractSubscriberCount(r.raw_payload);
-    if (sub == null || sub < MIN_SUBSCRIBER) continue;
+    if (sub == null) continue;
+    const view = extractViewCount(r.raw_payload);
+    // OR 통과: 구독자 충분 OR 누적 조회수 영향력
+    const passSub = sub >= MIN_SUBSCRIBER;
+    const passView = view != null && view >= MIN_VIEW_COUNT_FOR_LOW_SUB;
+    if (!passSub && !passView) continue;
     candidates.push({
       id: r.id,
       title: r.media_name,
