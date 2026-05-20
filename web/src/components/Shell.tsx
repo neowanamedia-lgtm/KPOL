@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PersonRow } from "@/components/PersonRow";
 import { PersonDetail } from "@/components/PersonDetail";
 import { MediaPane } from "@/components/MediaPane";
-import { MediaDetailOverlay } from "@/components/MediaDetailOverlay";
+import { MediaInfoModal } from "@/components/MediaInfoModal";
 import { fireEvent, type CategoryTarget } from "@/lib/analytics";
 import {
   MinusIcon,
@@ -391,9 +391,9 @@ export function Shell() {
         />
       ) : null}
 
-      {/* 미디어 프로그램 상세 overlay — Shell root level 직속 렌더.
-          main 의 stacking context(z-0) 밖에서 fixed z-50 → header/nav 위로 immersive. */}
-      <MediaDetailOverlay
+      {/* 미디어 프로그램 정보 모달 — Shell root level 직속 렌더.
+          상세 페이지 대신 바텀시트로 빠른 정보 확인 후 닫기. */}
+      <MediaInfoModal
         id={activeTab === "media" ? mediaProgramId : null}
         isInterested={
           mediaProgramId ? mediaInterestSet.has(mediaProgramId) : false
