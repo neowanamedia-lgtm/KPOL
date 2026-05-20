@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PersonRow } from "@/components/PersonRow";
 import { PersonDetail } from "@/components/PersonDetail";
-import { BasisExplainer } from "@/components/BasisExplainer";
 import { MediaPane } from "@/components/MediaPane";
+import { MediaDetailOverlay } from "@/components/MediaDetailOverlay";
 import { fireEvent, type CategoryTarget } from "@/lib/analytics";
 import {
   MinusIcon,
@@ -56,7 +56,7 @@ const BASIS_BY_TAB: Record<TabKey, string> = {
   people: "산정 기준: 순위 변동 · 24시 · 14:00 자동집계",
   "by-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
   "local-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
-  media: "산정 기준: 전날 조회수 · 최근 2주 영상 · 14:00 자동집계",
+  media: "산정 기준: 전날 조회수 자동 집계",
 };
 
 const SCALE_KEY = "kpol-scale";
@@ -96,7 +96,6 @@ export function Shell() {
    * "미디어" 탭 버튼 재탭 시 overlay 자동 닫기가 가능 (Person 의 detailId 와 같은 패턴).
    */
   const [mediaProgramId, setMediaProgramId] = useState<string | null>(null);
-  const [basisOpen, setBasisOpen] = useState(false);
   const [scale, setScale] = useState<Scale>(0);
   const [theme, setTheme] = useState<Theme>("night");
   const [interests, setInterests] = useState<string[]>([]);
@@ -163,9 +162,6 @@ export function Shell() {
       curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id],
     );
   };
-
-  // 모바일 안전망 — onClick + onPointerUp 둘 다에서 idempotent setState.
-  const openBasis = () => setBasisOpen(true);
 
   const toggleTheme = () =>
     setTheme((t) => (t === "night" ? "day" : "night"));
@@ -248,17 +244,10 @@ export function Shell() {
             </ul>
           </nav>
 
-          {/* 3줄: 산정 기준 띄 — wrapper는 클릭 ✗, "산정 기준" 단어만 button */}
+          {/* 3줄: 산정 기준 띄 — 상세 설명 모달 제거. 비대화형 표시만. */}
           <div className="relative z-10 flex items-center px-4 h-8">
             <span className="kpol-text-basis tracking-wide">
-              <button
-                type="button"
-                onClick={openBasis}
-                aria-label="산정 기준 상세 보기"
-                className="text-accent-green font-medium underline decoration-accent-green/40 underline-offset-2 cursor-pointer touch-manipulation active:opacity-70 transition-opacity"
-              >
-                산정 기준
-              </button>
+              <span className="text-accent-green font-medium">산정 기준</span>
               <span className="text-fg-dim">
                 {BASIS_BY_TAB[activeTab].replace("산정 기준", "")}
               </span>
@@ -282,11 +271,7 @@ export function Shell() {
               ))}
             </ul>
           ) : activeTab === "media" ? (
-            <MediaPane
-              selectedId={mediaProgramId}
-              onOpen={setMediaProgramId}
-              onClose={() => setMediaProgramId(null)}
-            />
+            <MediaPane onOpen={setMediaProgramId} />
           ) : (
             <PlaceholderPane label={TABS.find((t) => t.key === activeTab)!.label} />
           )}
@@ -360,10 +345,6 @@ export function Shell() {
         </nav>
       </div>
 
-      {basisOpen ? (
-        <BasisExplainer tab={activeTab} onClose={() => setBasisOpen(false)} />
-      ) : null}
-
       {detailPerson ? (
         <PersonDetail
           person={detailPerson}
@@ -372,6 +353,13 @@ export function Shell() {
           onClose={closeDetail}
         />
       ) : null}
+
+      {/* 미디어 프로그램 상세 overlay — Shell root level 직속 렌더.
+          main 의 stacking context(z-0) 밖에서 fixed z-50 → header/nav 위로 immersive. */}
+      <MediaDetailOverlay
+        id={activeTab === "media" ? mediaProgramId : null}
+        onClose={() => setMediaProgramId(null)}
+      />
 
       {/* Toast — 공유 결과/실패 안내. 2.5s 후 자동 사라짐. */}
       {toast ? (
