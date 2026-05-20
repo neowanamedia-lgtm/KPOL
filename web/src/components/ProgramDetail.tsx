@@ -5,19 +5,23 @@ import type {
   MediaProgramHost,
   MediaProgramPanelist,
   MediaProgramPersonLink,
+  MediaProgramChannelStats,
 } from "@/lib/programs";
 import { CloseIcon } from "@/components/icons";
+import { RankSparkline } from "@/components/RankSparkline";
 
 /**
- * KPOL Media 프로그램 상세 화면 (skeleton).
+ * KPOL Media 프로그램 상세 화면.
  *
- * PersonDetail 의 구조·톤·간격을 그대로 미러링.
- * 메인 Shell.tsx 에 아직 연결 안 됨 — Media 탭 정식 도입 시 wiring.
+ * PersonDetail 의 구조·톤·간격을 그대로 미러링:
+ *  - fixed inset-0 z-50 bg-bg flex flex-col
+ *  - 우상단 X close
+ *  - 헤더 (썸네일 + 타이틀)
+ *  - ProfileRow 정보표
+ *  - SectionTitle (text-accent-green) 으로 구분된 섹션들
  *
- * 사용 예 (admin 또는 미래 Media 탭):
- *   <ProgramDetail program={programFull} onClose={...} />
- *
- * 영상 리스트·관련 인물 graph 는 placeholder. 정식 데이터 wiring 은 후속.
+ * 랭킹 산정 기준은 "최근 2주 영상 활동" 으로 이동 중 (kpol-data-ingest-safety v2).
+ * 누적 채널 지표는 보조 정보로 표시.
  */
 
 interface Props {
@@ -34,7 +38,6 @@ function formatViews(n: number | null | undefined): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "-";
-  // ISO date(YYYY-MM-DD) 또는 timestamptz 모두 수용
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("ko-KR", {
@@ -63,11 +66,19 @@ export function ProgramDetail({ program, onClose }: Props) {
     hosts,
     panelists,
     person_links,
+    channel,
+    recent_activity,
   } = program;
+
+  // 헤더 썸네일 우선순위: channel.thumbnail (YouTube) > program.thumbnail_url > placeholder
+  const headerThumb = channel?.thumbnail_url ?? thumbnail_url ?? null;
+
+  // sparkline history — recent_activity.daily_view_series 우선, 없으면 빈 배열 (자동 "데이터 부족" placeholder)
+  const sparklineHistory = recent_activity?.daily_view_series ?? [];
 
   return (
     <div className="fixed inset-0 z-50 bg-bg flex flex-col">
-      {/* ── 헤더 — PersonDetail 동일 패턴 ── */}
+      {/* ── 헤더 ── */}
       <header className="shrink-0 px-6 pt-2 pb-5">
         <div className="flex justify-end -mr-3 mb-1">
           <button
@@ -81,10 +92,10 @@ export function ProgramDetail({ program, onClose }: Props) {
         </div>
 
         <div className="flex items-end gap-3">
-          {thumbnail_url ? (
+          {headerThumb ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={thumbnail_url}
+              src={headerThumb}
               alt={title}
               className="w-[112px] h-[112px] rounded-md object-cover bg-elev shrink-0"
             />
@@ -114,15 +125,12 @@ export function ProgramDetail({ program, onClose }: Props) {
 
       {/* ── 본문 ── */}
       <main className="flex-1 overflow-y-auto px-6 pb-10">
-        {/* 1) 정보표 — PersonDetail ProfileRow 패턴 */}
+        {/* 1) 정보표 */}
         <section className="pt-2 pb-6 kpol-text-detail space-y-0.5">
           <ProfileRow label="방송사" value={broadcaster ?? "-"} />
           <ProfileRow label="채널" value={channel_name ?? "-"} />
           <ProfileRow label="분류" value={category ?? "-"} />
-          <ProfileRow
-            label="편성"
-            value={upload_frequency ?? "-"}
-          />
+          <ProfileRow label="편성" value={upload_frequency ?? "-"} />
           <ProfileRow
             label="상태"
             value={
@@ -139,7 +147,9 @@ export function ProgramDetail({ program, onClose }: Props) {
           {ended_at ? (
             <ProfileRow label="종영" value={formatDate(ended_at)} />
           ) : null}
-          <ProfileRow label="누적 평균 조회" value={formatViews(average_views)} />
+          {average_views != null ? (
+            <ProfileRow label="평균 조회" value={formatViews(average_views)} />
+          ) : null}
           {political_alignment ? (
             <ProfileRow label="성향" value={political_alignment} />
           ) : null}
@@ -166,7 +176,56 @@ export function ProgramDetail({ program, onClose }: Props) {
           </section>
         ) : null}
 
-        {/* 2) 진행자 */}
+        {/* 2) 영향력 추이 — PersonDetail 의 RankSparkline 동일 사용 (tone="fg") */}
+        <section className="pt-5 pb-6">
+          <SectionTitle>영향력 추이 · 최근 2주</SectionTitle>
+          <RankSparkline history={sparklineHistory} height={120} tone="fg" />
+          {recent_activity ? (
+            <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 kpol-text-list-xs text-fg-dim tabular-nums">
+              {recent_activity.upload_count != null ? (
+                <div className="flex gap-1.5">
+                  <dt>업로드</dt>
+                  <dd className="text-fg font-medium">
+                    {recent_activity.upload_count}회
+                  </dd>
+                </div>
+              ) : null}
+              {recent_activity.avg_view_count != null ? (
+                <div className="flex gap-1.5">
+                  <dt>평균 조회</dt>
+                  <dd className="text-fg font-medium">
+                    {formatViews(recent_activity.avg_view_count)}
+                  </dd>
+                </div>
+              ) : null}
+              {recent_activity.max_view_count != null ? (
+                <div className="flex gap-1.5">
+                  <dt>최고</dt>
+                  <dd className="text-fg font-medium">
+                    {formatViews(recent_activity.max_view_count)}
+                  </dd>
+                </div>
+              ) : null}
+              {recent_activity.last_upload_at ? (
+                <div className="flex gap-1.5">
+                  <dt>최근</dt>
+                  <dd className="text-fg font-medium">
+                    {formatDate(recent_activity.last_upload_at)}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : (
+            <p className="mt-3 kpol-text-list-xs text-fg-dim">
+              최근 14일 영상 활동 데이터 준비 중
+            </p>
+          )}
+        </section>
+
+        {/* 3) YouTube 채널 누적 지표 (보조) — channel 있을 때만 */}
+        {channel ? <ChannelStatsSection channel={channel} /> : null}
+
+        {/* 4) 진행자 */}
         <section className="pt-5">
           <SectionTitle>진행자</SectionTitle>
           {hosts.length > 0 ? (
@@ -180,7 +239,7 @@ export function ProgramDetail({ program, onClose }: Props) {
           )}
         </section>
 
-        {/* 3) 고정 패널 */}
+        {/* 5) 고정 패널 */}
         <section className="pt-5">
           <SectionTitle>고정 패널</SectionTitle>
           {panelists.length > 0 ? (
@@ -194,7 +253,7 @@ export function ProgramDetail({ program, onClose }: Props) {
           )}
         </section>
 
-        {/* 4) 최근 출연 정치인 (person_links) */}
+        {/* 6) 최근 출연 / 관련 인물 */}
         <section className="pt-5">
           <SectionTitle>최근 출연 / 관련 인물</SectionTitle>
           {person_links.length > 0 ? (
@@ -210,19 +269,11 @@ export function ProgramDetail({ program, onClose }: Props) {
           )}
         </section>
 
-        {/* 5) 최근 영상 — TODO: YouTube playlistItems API 도입 (할당량 검토) */}
+        {/* 7) 최근 영상 — YouTube playlistItems 연결 예정 (최근 14일 기준) */}
         <section className="pt-5">
-          <SectionTitle>최근 영상</SectionTitle>
+          <SectionTitle>최근 영상 · 최근 2주</SectionTitle>
           <p className="text-fg-dim kpol-text-detail">
             영상 리스트 준비 중 (YouTube API 연결 예정)
-          </p>
-        </section>
-
-        {/* 6) 관련 인물 연결 — TODO: graph view 후속 */}
-        <section className="pt-5">
-          <SectionTitle>관련 인물 연결</SectionTitle>
-          <p className="text-fg-dim kpol-text-detail">
-            관계망 표시 준비 중
           </p>
         </section>
       </main>
@@ -231,7 +282,7 @@ export function ProgramDetail({ program, onClose }: Props) {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// sub-components — PersonDetail ProfileRow/제목 패턴 그대로
+// sub-components
 // ──────────────────────────────────────────────────────────────────────
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -248,6 +299,61 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
       <span className="text-fg-dim w-16 shrink-0">{label}</span>
       <span className="text-fg flex-1 min-w-0">{value}</span>
     </div>
+  );
+}
+
+function ChannelStatsSection({ channel }: { channel: MediaProgramChannelStats }) {
+  const sub = channel.hidden_subscriber_count
+    ? "비공개"
+    : formatViews(channel.subscriber_count);
+  const view = formatViews(channel.view_count);
+  const video =
+    channel.video_count != null
+      ? channel.video_count.toLocaleString("ko-KR")
+      : "-";
+  return (
+    <section className="pt-5">
+      <SectionTitle>YouTube 채널 누적 지표 (보조)</SectionTitle>
+      <div className="kpol-text-detail space-y-0.5 mb-2">
+        <ProfileRow label="구독자" value={sub} />
+        <ProfileRow label="누적 조회" value={view} />
+        <ProfileRow label="영상 수" value={video} />
+        {channel.published_at ? (
+          <ProfileRow
+            label="개설일"
+            value={formatDate(channel.published_at)}
+          />
+        ) : null}
+        {channel.country ? (
+          <ProfileRow label="국가" value={channel.country} />
+        ) : null}
+        {channel.channel_title ? (
+          <ProfileRow label="채널명" value={channel.channel_title} />
+        ) : null}
+        {channel.custom_url ? (
+          <div className="flex gap-3 leading-snug">
+            <span className="text-fg-dim w-16 shrink-0">handle</span>
+            <span className="text-fg flex-1 min-w-0 truncate">
+              {channel.custom_url}
+            </span>
+          </div>
+        ) : null}
+        <div className="flex gap-3 leading-snug">
+          <span className="text-fg-dim w-16 shrink-0">채널</span>
+          <a
+            href={channel.official_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-fg hover:text-accent-green flex-1 min-w-0 truncate"
+          >
+            {channel.official_url}
+          </a>
+        </div>
+      </div>
+      <p className="text-fg-dim kpol-text-list-xs">
+        ※ 누적 지표 — 랭킹 산정 기준은 최근 2주 영상 활동
+      </p>
+    </section>
   );
 }
 

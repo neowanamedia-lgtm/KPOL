@@ -56,7 +56,7 @@ const BASIS_BY_TAB: Record<TabKey, string> = {
   people: "산정 기준: 순위 변동 · 24시 · 14:00 자동집계",
   "by-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
   "local-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
-  media: "산정 기준: 언급·인용·연결 횟수 · 24시 · 14:00 자동집계",
+  media: "산정 기준: 최근 2주 영상 활동 · 14:00 자동집계",
 };
 
 const SCALE_KEY = "kpol-scale";
@@ -91,6 +91,11 @@ function loadInitialInterests(): string[] {
 export function Shell() {
   const [activeTab, setActiveTab] = useState<TabKey>("people");
   const [detailId, setDetailId] = useState<string | null>(null);
+  /**
+   * 미디어 탭의 ProgramDetail overlay 상태 — Shell 에서 들고 있어야
+   * "미디어" 탭 버튼 재탭 시 overlay 자동 닫기가 가능 (Person 의 detailId 와 같은 패턴).
+   */
+  const [mediaProgramId, setMediaProgramId] = useState<string | null>(null);
   const [basisOpen, setBasisOpen] = useState(false);
   const [scale, setScale] = useState<Scale>(0);
   const [theme, setTheme] = useState<Theme>("night");
@@ -222,7 +227,9 @@ export function Shell() {
                       type="button"
                       onClick={() => {
                         setActiveTab(t.key);
+                        // 탭 재탭 시 열린 detail overlay 들을 모두 닫아 자연스럽게 리스트로 복귀.
                         setDetailId(null);
+                        setMediaProgramId(null);
                         fireEvent("category_click", {
                           event_target: TAB_EVENT_TARGET[t.key],
                         });
@@ -275,7 +282,11 @@ export function Shell() {
               ))}
             </ul>
           ) : activeTab === "media" ? (
-            <MediaPane />
+            <MediaPane
+              selectedId={mediaProgramId}
+              onOpen={setMediaProgramId}
+              onClose={() => setMediaProgramId(null)}
+            />
           ) : (
             <PlaceholderPane label={TABS.find((t) => t.key === activeTab)!.label} />
           )}

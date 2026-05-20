@@ -88,11 +88,49 @@ export interface MediaProgramPersonLink {
   created_at: string;
 }
 
+/**
+ * YouTube 채널 누적 지표 — program.youtube_channel_id 가 있을 때만 채워짐.
+ * 1차 랭킹 기준이 아닌 "보조 정보". 메인 랭킹은 최근 14일 영상 기반으로 이동 예정.
+ */
+export interface MediaProgramChannelStats {
+  channel_id: string;
+  channel_title: string | null;
+  custom_url: string | null;
+  thumbnail_url: string | null;
+  subscriber_count: number | null;
+  hidden_subscriber_count: boolean;
+  view_count: number | null;
+  video_count: number | null;
+  published_at: string | null;
+  country: string | null;
+  official_url: string;
+  channel_fetched_at: string;
+}
+
+/**
+ * 향후 도입될 "최근 14일 영상" 기반 활동성 지표 — 현재 미수집.
+ * UI 는 이 shape 를 미리 알고 placeholder 표시.
+ */
+export interface MediaProgramRecentActivity {
+  window_days: number; // 보통 14
+  window_start: string;
+  window_end: string;
+  upload_count: number | null;
+  avg_view_count: number | null;
+  max_view_count: number | null;
+  total_like_count: number | null;
+  total_comment_count: number | null;
+  last_upload_at: string | null;
+  daily_view_series: number[] | null; // sparkline 용
+}
+
 /** Detail API 가 반환하는 조인 결과 */
 export interface MediaProgramFull extends MediaProgram {
   hosts: MediaProgramHost[];
   panelists: MediaProgramPanelist[];
   person_links: MediaProgramPersonLink[];
+  channel?: MediaProgramChannelStats | null;
+  recent_activity?: MediaProgramRecentActivity | null;
 }
 
 /** 인물 → 프로그램 역방향 조회 결과 (UI 의 person → programs 화면용) */
