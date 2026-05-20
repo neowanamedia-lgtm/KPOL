@@ -26,6 +26,7 @@ export interface MediaProgramListItem
   > {
   hosts?: Pick<MediaProgramHost, "person_name" | "role">[];
   rank_change?: number | null;
+  subscriber_count?: number | null;
 }
 
 interface Props {
@@ -114,6 +115,9 @@ export function MediaProgramRow({
               {broadcasterLabel}
             </span>
           ) : null}
+          <span className="kpol-text-meta text-fg-dim shrink-0 whitespace-nowrap tabular-nums ml-auto">
+            sub={typeof program.subscriber_count === "number" ? program.subscriber_count.toLocaleString("ko-KR") : "—"}
+          </span>
         </button>
         <span className="kpol-text-signal shrink-0 text-right whitespace-nowrap">
           <ChangeSignal value={change} />

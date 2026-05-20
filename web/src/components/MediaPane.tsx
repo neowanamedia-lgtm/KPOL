@@ -81,17 +81,26 @@ export function MediaPane({ onOpen, interestSet }: Props) {
       </div>
     );
   }
+  const top = list.programs[0];
+  const topSub = top
+    ? (top as unknown as { subscriber_count?: number | null }).subscriber_count
+    : null;
   return (
-    <ul className="pb-8">
-      {list.programs.map((p, i) => (
-        <MediaProgramRow
-          key={p.id}
-          rank={i + 1}
-          program={p}
-          interested={interestSet.has(p.id)}
-          onOpen={onOpen}
-        />
-      ))}
-    </ul>
+    <>
+      <div className="px-4 py-1 text-[10px] tabular-nums bg-fg/5 text-fg-dim border-b border-border/60 break-all">
+        api=/api/programs?limit=100 · count={list.programs.length} · #1={top?.title ?? "—"} sub={typeof topSub === "number" ? topSub.toLocaleString("ko-KR") : String(topSub)}
+      </div>
+      <ul className="pb-8">
+        {list.programs.map((p, i) => (
+          <MediaProgramRow
+            key={p.id}
+            rank={i + 1}
+            program={p}
+            interested={interestSet.has(p.id)}
+            onOpen={onOpen}
+          />
+        ))}
+      </ul>
+    </>
   );
 }
