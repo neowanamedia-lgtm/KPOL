@@ -35,18 +35,23 @@ function formatViewsKo(n: number | null | undefined): string {
   return n.toLocaleString("ko-KR");
 }
 
-/** 구독자 대비 조회수 비율 — view/subscriber, "N배" 단위. */
-function formatViewSubRatio(
-  view: number | null | undefined,
+/**
+ * 구독자 대비 조회수 비율 — (영상당 평균 조회수 ÷ 구독자 수) × 100%.
+ * 최대 1자리 소수. 분모 0/음수/누락 시 null (행 숨김 처리).
+ */
+function formatAvgPerSubPercent(
+  avgViewsPerVideo: number | null | undefined,
   subscriber: number | null | undefined,
 ): string | null {
-  if (view == null || subscriber == null || subscriber <= 0) return null;
-  const ratio = view / subscriber;
-  if (!Number.isFinite(ratio)) return null;
-  if (ratio >= 100) return `${Math.round(ratio).toLocaleString("ko-KR")}배`;
-  if (ratio >= 10) return `${ratio.toFixed(1).replace(/\.0$/, "")}배`;
-  if (ratio >= 1) return `${ratio.toFixed(1)}배`;
-  return `${ratio.toFixed(2)}배`;
+  if (avgViewsPerVideo == null || !Number.isFinite(avgViewsPerVideo))
+    return null;
+  if (avgViewsPerVideo < 0) return null;
+  if (subscriber == null || !Number.isFinite(subscriber) || subscriber <= 0)
+    return null;
+  const pct = (avgViewsPerVideo / subscriber) * 100;
+  if (!Number.isFinite(pct) || pct < 0) return null;
+  // 1자리 소수까지, 정수면 ".0" 트림
+  return `${pct.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
 export function MediaInfoModal({
@@ -123,10 +128,10 @@ export function MediaInfoModal({
   const avgPerVideoLabel =
     avgPerVideo != null ? `${formatViewsKo(Math.round(avgPerVideo))}회` : null;
 
-  // 구독자 대비 조회수 비율
+  // 구독자 대비 조회수 비율 = 영상당 평균 조회수 ÷ 구독자 수 (%)
   const viewSubRatioLabel = subscriberHidden
     ? null
-    : formatViewSubRatio(totalViews, subscriberCount);
+    : formatAvgPerSubPercent(avgPerVideo, subscriberCount);
 
   // 최근 업로드 영상 — published_at desc 로 정렬, 상위 3건
   const recentVideos = (program?.recent_videos ?? [])
@@ -155,7 +160,7 @@ export function MediaInfoModal({
       {/* Compact center modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center px-6 pointer-events-none">
         <div
-          className="bg-bg border border-border-strong rounded-lg w-full max-w-xs px-4 py-4 pointer-events-auto"
+          className="bg-elev border border-border-strong rounded-lg w-full max-w-xs px-4 py-4 pointer-events-auto shadow-xl"
           role="dialog"
           aria-modal="true"
         >
