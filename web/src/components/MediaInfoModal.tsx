@@ -135,32 +135,36 @@ export function MediaInfoModal({
             </p>
           ) : (
             <>
-              {/* 프로그램명 + 별 + 닫기 */}
-              <div className="flex items-center gap-1 min-w-0 mb-3">
-                <h2
-                  className={`text-[16px] font-medium leading-tight truncate flex-1 ${
-                    isInterested ? "text-accent-green" : "text-fg"
-                  }`}
-                >
-                  {program.title}
-                </h2>
-                <button
-                  type="button"
-                  onClick={toggle}
-                  aria-label={isInterested ? "관심 해제" : "관심 등록"}
-                  aria-pressed={isInterested}
-                  className={`w-7 h-7 flex items-center justify-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
-                    isInterested
-                      ? "text-accent-green"
-                      : "text-fg-dim hover:text-fg-muted"
-                  }`}
-                >
-                  {isInterested ? (
-                    <StarIconFilled className="w-4 h-4 pointer-events-none" />
-                  ) : (
-                    <StarIcon className="w-4 h-4 pointer-events-none" />
-                  )}
-                </button>
+              {/* 헤더 행 — [타이틀 ★]  ......  [×]
+                  · 타이틀과 별은 한 그룹 (items-baseline 으로 inline 붙임)
+                  · X 만 우측 끝 (justify-between) */}
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-baseline min-w-0">
+                  <h2
+                    className={`text-[16px] font-medium leading-tight ${
+                      isInterested ? "text-accent-green" : "text-fg"
+                    }`}
+                  >
+                    {program.title}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    aria-label={isInterested ? "관심 해제" : "관심 등록"}
+                    aria-pressed={isInterested}
+                    className={`ml-1 w-5 h-5 inline-flex items-center justify-center self-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
+                      isInterested
+                        ? "text-accent-green"
+                        : "text-fg-dim hover:text-fg-muted"
+                    }`}
+                  >
+                    {isInterested ? (
+                      <StarIconFilled className="w-4 h-4 pointer-events-none" />
+                    ) : (
+                      <StarIcon className="w-4 h-4 pointer-events-none" />
+                    )}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={onClose}
@@ -171,16 +175,16 @@ export function MediaInfoModal({
                 </button>
               </div>
 
-              {/* 정보 라인 — 라벨:값 inline, 줄간격 최소 */}
+              {/* 정보 라인 — 라벨:값 inline, wrap 허용 (잘림 ✗) */}
               <div className="space-y-1 kpol-text-meta">
                 {hostNames ? (
-                  <div className="truncate">
+                  <div>
                     <span className="text-fg-dim">진행자:</span>{" "}
                     <span className="text-fg">{hostNames}</span>
                   </div>
                 ) : null}
                 {panelistNames ? (
-                  <div className="truncate">
+                  <div>
                     <span className="text-fg-dim">고정 패널:</span>{" "}
                     <span className="text-fg">{panelistNames}</span>
                   </div>
