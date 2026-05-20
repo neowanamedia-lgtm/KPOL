@@ -36,6 +36,15 @@ function formatViewsKo(n: number | null | undefined): string {
 }
 
 /**
+ * 영상 제목 앞의 대괄호 메타 라벨 strip — [LIVE]/[라이브]/[2026-05-20]/[코너명] 등.
+ * 연속된 대괄호도 모두 제거. 본문만 남김.
+ */
+function stripBracketPrefix(title: string | null | undefined): string {
+  if (!title) return "";
+  return title.replace(/^(?:\s*\[[^\]]*\]\s*)+/, "").trim();
+}
+
+/**
  * 구독자 대비 조회수 비율 — (영상당 평균 조회수 ÷ 구독자 수) × 100%.
  * 두 값 모두 > 0 일 때만 계산. 최대 1자리 소수.
  */
@@ -122,15 +131,13 @@ export function MediaInfoModal({
   const recent24hVideoCount =
     program?.daily_ranking?.recent_video_count ?? null;
 
-  // 영상당 평균 조회수 = 24h 총 조회수 ÷ 24h 영상 수
+  // 영상당 평균 조회수 — UI 노출 ✗. 단 ratio 계산용으로 내부 유지.
   const avg24h =
     view24h != null &&
     recent24hVideoCount != null &&
     recent24hVideoCount > 0
       ? view24h / recent24hVideoCount
       : null;
-  const avgPerVideoLabel =
-    avg24h != null ? `${formatViewsKo(Math.round(avg24h))}회` : null;
 
   // 구독자 대비 조회수 비율 = 영상당 평균(24h) ÷ 구독자 수 × 100 %
   const viewSubRatioLabel = subscriberHidden
@@ -230,14 +237,6 @@ export function MediaInfoModal({
                     <span className="text-fg tabular-nums">{view24hLabel}</span>
                   </div>
                 ) : null}
-                {avgPerVideoLabel ? (
-                  <div>
-                    <span className="text-fg-dim">영상당 평균 조회수:</span>{" "}
-                    <span className="text-fg tabular-nums">
-                      {avgPerVideoLabel}
-                    </span>
-                  </div>
-                ) : null}
                 {viewSubRatioLabel ? (
                   <div>
                     <span className="text-fg-dim">
@@ -257,18 +256,21 @@ export function MediaInfoModal({
                     최근 업로드 영상 목록
                   </div>
                   <ul className="space-y-1">
-                    {recentVideos.map((v) => (
-                      <li key={v.video_id} className="leading-snug">
-                        <a
-                          href={`https://www.youtube.com/watch?v=${v.video_id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-accent-green kpol-text-meta hover:underline active:opacity-70 touch-manipulation block truncate"
-                        >
-                          {v.title ?? "(제목 없음)"}
-                        </a>
-                      </li>
-                    ))}
+                    {recentVideos.map((v) => {
+                      const cleanTitle = stripBracketPrefix(v.title) || "(제목 없음)";
+                      return (
+                        <li key={v.video_id} className="leading-snug">
+                          <a
+                            href={`https://www.youtube.com/watch?v=${v.video_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-fg kpol-text-meta hover:text-fg-muted active:opacity-70 touch-manipulation block truncate"
+                          >
+                            {cleanTitle}
+                          </a>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : null}
