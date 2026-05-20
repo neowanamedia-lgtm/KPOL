@@ -17,7 +17,14 @@
       "PowerShell(Get-NetConnectionProfile *)",
       "PowerShell(try { $r = Invoke-WebRequest http://172.30.1.53:3000 -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
       "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000 -UseBasicParsing -TimeoutSec 60; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
-      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000/admin -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })"
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000/admin -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest http://localhost:3000/data-test -UseBasicParsing -TimeoutSec 30; \"STATUS: $\\($r.StatusCode\\)\" } catch { \"ERROR: $_\" })",
+      "Bash(curl -s -X GET https://eqdmsdtgyedkfggdhizy.supabase.co/rest/v1/election_candidate_sources?select=* -H 'apikey: sb_publishable_QVzl8xjsdDlvxxjQWoC_7w_Z_GGOXqS' -H 'Authorization: Bearer sb_publishable_QVzl8xjsdDlvxxjQWoC_7w_Z_GGOXqS' -H 'Prefer: count=exact' -H 'Range: 0-0' -I)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"TSC EXIT: $?\")",
+      "Bash(npx eslint *)",
+      "Bash(echo \"LINT EXIT: $?\")"
     ]
   }
 }

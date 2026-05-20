@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface LogRow {
   id: string;
@@ -27,9 +28,6 @@ const CATEGORIES = [
 ] as const;
 
 const POLL_INTERVAL_MS = 30000;
-
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 function todayStartISO(): string {
   const d = new Date();
@@ -85,15 +83,12 @@ export function AdminDashboard() {
   const [lastFetchAt, setLastFetchAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
-    if (!URL || !ANON) {
+    if (!isSupabaseConfigured) {
       setError("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 미설정");
       return;
     }
     try {
-      const sb = createClient(URL, ANON, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      const s = await fetchStats(sb);
+      const s = await fetchStats(supabase);
       setStats(s);
       setLastFetchAt(new Date());
       setError(null);
@@ -103,6 +98,8 @@ export function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    // 외부(Supabase) → React state 동기화. setState는 load() 안에서 일어남.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     const id = setInterval(load, POLL_INTERVAL_MS);
     return () => clearInterval(id);

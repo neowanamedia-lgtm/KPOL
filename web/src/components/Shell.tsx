@@ -39,23 +39,23 @@ type TabKey = "people" | "media" | "by-election" | "local-election";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "people", label: "인물" },
-  { key: "media", label: "미디어" },
   { key: "by-election", label: "보궐선거" },
   { key: "local-election", label: "지방선거" },
+  { key: "media", label: "미디어" },
 ];
 
 const TAB_EVENT_TARGET: Record<TabKey, CategoryTarget> = {
   people: "person",
-  media: "media",
   "by-election": "by_election",
   "local-election": "local_election",
+  media: "media",
 };
 
 const BASIS_BY_TAB: Record<TabKey, string> = {
   people: "산정 기준: 순위 변동 · 24시 · 14:00 자동집계",
-  media: "산정 기준: 언급·인용·연결 횟수 · 24시 · 14:00 자동집계",
   "by-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
   "local-election": "산정 기준: 후보 단위 신호 · 24시 · 14:00 자동집계",
+  media: "산정 기준: 언급·인용·연결 횟수 · 24시 · 14:00 자동집계",
 };
 
 const SCALE_KEY = "kpol-scale";
@@ -115,6 +115,8 @@ export function Shell() {
 
   // hydrate from localStorage after mount (SSR-safe)
   useEffect(() => {
+    // localStorage → React state 동기화 (외부 시스템 sync)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setScale(loadInitialScale());
     setTheme(loadInitialTheme());
     setInterests(loadInitialInterests());
@@ -344,7 +346,9 @@ export function Shell() {
         </nav>
       </div>
 
-      {basisOpen ? <BasisExplainer onClose={() => setBasisOpen(false)} /> : null}
+      {basisOpen ? (
+        <BasisExplainer tab={activeTab} onClose={() => setBasisOpen(false)} />
+      ) : null}
 
       {detailPerson ? (
         <PersonDetail
