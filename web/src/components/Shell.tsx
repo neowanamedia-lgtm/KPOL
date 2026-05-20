@@ -365,41 +365,41 @@ export function Shell() {
               </button>
             </div>
 
-            {/* 우: 글자 크기 - / + (모달 열린 상태에서도 동작해야 하므로 stopPropagation 방어) */}
-            <div className="flex justify-end items-center gap-1.5">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  decScale();
-                }}
-                disabled={scale === 0}
-                aria-label="글자 크기 줄이기"
-                className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
-                  scale === 0
-                    ? "border-border bg-elev/60 text-fg-dim/40 cursor-not-allowed"
-                    : "border-fg-muted bg-elev text-fg hover:text-brand cursor-pointer"
-                }`}
-              >
-                <MinusIcon className="w-[13px] h-[13px] pointer-events-none" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  incScale();
-                }}
-                disabled={scale === 3}
-                aria-label="글자 크기 키우기"
-                className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
-                  scale === 3
-                    ? "border-border bg-elev/60 text-fg-dim/40 cursor-not-allowed"
-                    : "border-fg-muted bg-elev text-fg hover:text-brand cursor-pointer"
-                }`}
-              >
-                <PlusIcon className="w-[13px] h-[13px] pointer-events-none" />
-              </button>
-            </div>
+            {/* 우: 글자 크기 - / +.
+                미디어 모달 열린 동안 hidden — 모달 닫힘 문제 원천 차단.
+                리스트에서 설정한 scale 은 CSS 변수로 모달 텍스트에도 그대로 적용됨. */}
+            {activeTab === "media" && mediaProgramId != null ? (
+              <div />
+            ) : (
+              <div className="flex justify-end items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={decScale}
+                  disabled={scale === 0}
+                  aria-label="글자 크기 줄이기"
+                  className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
+                    scale === 0
+                      ? "border-border bg-elev/60 text-fg-dim/40 cursor-not-allowed"
+                      : "border-fg-muted bg-elev text-fg hover:text-brand cursor-pointer"
+                  }`}
+                >
+                  <MinusIcon className="w-[13px] h-[13px] pointer-events-none" />
+                </button>
+                <button
+                  type="button"
+                  onClick={incScale}
+                  disabled={scale === 3}
+                  aria-label="글자 크기 키우기"
+                  className={`w-[25px] h-[25px] rounded-full border flex items-center justify-center touch-manipulation transition-colors ${
+                    scale === 3
+                      ? "border-border bg-elev/60 text-fg-dim/40 cursor-not-allowed"
+                      : "border-fg-muted bg-elev text-fg hover:text-brand cursor-pointer"
+                  }`}
+                >
+                  <PlusIcon className="w-[13px] h-[13px] pointer-events-none" />
+                </button>
+              </div>
+            )}
           </div>
         </nav>
       </div>

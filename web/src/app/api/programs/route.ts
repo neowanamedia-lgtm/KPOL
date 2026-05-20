@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from("media_programs")
       .select(
-        "id,title,slug,broadcaster,channel_name,youtube_channel_id,thumbnail_url,category,description,upload_frequency,started_at,ended_at,active_status,political_alignment,average_views,influence_score,created_at,updated_at,hosts:media_program_hosts(person_name,role,active)",
+        "id,title,slug,broadcaster,channel_name,youtube_channel_id,youtube_title_filter,thumbnail_url,category,description,upload_frequency,started_at,ended_at,active_status,political_alignment,average_views,influence_score,created_at,updated_at,hosts:media_program_hosts(person_name,role,active)",
       )
       .order("title", { ascending: true })
       .limit(limit);
