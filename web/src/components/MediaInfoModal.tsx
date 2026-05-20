@@ -37,7 +37,7 @@ function formatViewsKo(n: number | null | undefined): string {
 
 /**
  * 구독자 대비 조회수 비율 — (영상당 평균 조회수 ÷ 구독자 수) × 100%.
- * 최대 1자리 소수. 분모 0/음수/누락 시 null (행 숨김 처리).
+ * 두 값 모두 > 0 일 때만 계산. 최대 1자리 소수.
  */
 function formatAvgPerSubPercent(
   avgViewsPerVideo: number | null | undefined,
@@ -45,11 +45,11 @@ function formatAvgPerSubPercent(
 ): string | null {
   if (avgViewsPerVideo == null || !Number.isFinite(avgViewsPerVideo))
     return null;
-  if (avgViewsPerVideo < 0) return null;
+  if (avgViewsPerVideo <= 0) return null; // > 0 만 표시
   if (subscriber == null || !Number.isFinite(subscriber) || subscriber <= 0)
     return null;
   const pct = (avgViewsPerVideo / subscriber) * 100;
-  if (!Number.isFinite(pct) || pct < 0) return null;
+  if (!Number.isFinite(pct) || pct <= 0) return null;
   // 1자리 소수까지, 정수면 ".0" 트림
   return `${pct.toFixed(1).replace(/\.0$/, "")}%`;
 }
@@ -105,12 +105,12 @@ export function MediaInfoModal({
       .map((p) => p.person_name),
   ].join(", ");
 
-  // 구독자 수
+  // 구독자 수 — subscriber_count > 0 일 때만 (0/null 은 숨김, 비공개는 라벨 표시)
   const subscriberCount = program?.channel?.subscriber_count ?? null;
   const subscriberHidden = program?.channel?.hidden_subscriber_count === true;
   const subscriberLabel = subscriberHidden
     ? "비공개"
-    : subscriberCount != null
+    : subscriberCount != null && subscriberCount > 0
       ? `${formatViewsKo(subscriberCount)}명`
       : null;
 

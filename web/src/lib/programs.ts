@@ -45,6 +45,13 @@ export interface MediaProgram {
   average_views: number | null;
   influence_score: number | null;
 
+  /**
+   * 채널 공유 한계 해소 — 같은 youtube_channel_id 의 영상 중 이 프로그램에
+   * 속하는 영상만 골라내는 keyword (case-insensitive 부분 일치).
+   * null = 채널의 모든 영상이 이 프로그램에 귀속.
+   */
+  youtube_title_filter: string | null;
+
   raw_payload: unknown;
 
   created_at: string;
@@ -202,6 +209,7 @@ export interface CreateProgramInput {
   broadcaster?: string;
   channel_name?: string;
   youtube_channel_id?: string;
+  youtube_title_filter?: string;
   external_url?: string;
   thumbnail_url?: string;
   category?: ProgramCategory;

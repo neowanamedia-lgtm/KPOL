@@ -22,6 +22,7 @@ const ALLOWED_FIELDS = [
   "broadcaster",
   "channel_name",
   "youtube_channel_id",
+  "youtube_title_filter",
   "external_url",
   "thumbnail_url",
   "category",

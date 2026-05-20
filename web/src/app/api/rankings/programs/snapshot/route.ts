@@ -48,6 +48,8 @@ interface ProgramRow {
   id: string;
   title: string;
   youtube_channel_id: string;
+  /** null 이면 채널 전체 영상이 이 프로그램에 귀속. 값 있으면 title 부분 일치 필터. */
+  youtube_title_filter: string | null;
 }
 
 interface VideoSnapshotRow {
@@ -126,7 +128,9 @@ async function handle(req: Request) {
   // 1) 프로그램 로드 (활성 + youtube_channel_id 있는 것만)
   const { data: progRows, error: progErr } = await supabase
     .from("media_programs")
-    .select("id, title, youtube_channel_id, active_status")
+    .select(
+      "id, title, youtube_channel_id, youtube_title_filter, active_status",
+    )
     .eq("active_status", "active")
     .not("youtube_channel_id", "is", null);
   if (progErr) {
@@ -251,23 +255,35 @@ async function handle(req: Request) {
   // 6) 프로그램별 metric 계산
   //    "최근 24시간 총조회수" = 최근 24h 내 업로드된 영상의 cumulative_view_count 합.
   //    "recent_video_count"   = 그 24h 영상의 갯수.
-  //    이전 (14d delta) 방식과 다른 metric — 24h 안에 올라온 영상의 누적 시청량.
+  //
+  //    채널 공유 한계 해소 — youtube_title_filter 있으면 영상 제목에
+  //    해당 keyword (case-insensitive 부분 일치) 가 포함된 것만 집계.
+  //    예: MBC 라디오 시사 채널에서 "시선집중" filter → "[시선집중]" 태그 영상만.
   const cutoff24hMs = Date.now() - 24 * 60 * 60 * 1000;
   interface ComputedProgramRow {
     program_id: string;
     title: string;
     channel_id: string;
+    title_filter: string | null;
     previous_day_view_count: number | null; // null = 24h 내 영상 없음 또는 데이터 부족
     recent_video_count: number;
   }
   const computed: ComputedProgramRow[] = programs.map((p) => {
     const vids = videosByChannel.get(p.youtube_channel_id) ?? [];
+    const filterLc = p.youtube_title_filter
+      ? p.youtube_title_filter.toLowerCase()
+      : null;
     let sum24h = 0;
     let count24h = 0;
     for (const v of vids) {
       if (!v.published_at) continue;
       const pubMs = Date.parse(v.published_at);
       if (!Number.isFinite(pubMs) || pubMs < cutoff24hMs) continue;
+      // title filter 적용 — null 이면 모든 영상 통과
+      if (filterLc) {
+        const titleLc = (v.title ?? "").toLowerCase();
+        if (!titleLc.includes(filterLc)) continue;
+      }
       const viewCount = v.cumulative_view_count;
       if (viewCount == null || !Number.isFinite(viewCount)) continue;
       sum24h += Math.max(0, viewCount);
@@ -277,6 +293,7 @@ async function handle(req: Request) {
       program_id: p.id,
       title: p.title,
       channel_id: p.youtube_channel_id,
+      title_filter: p.youtube_title_filter ?? null,
       previous_day_view_count: count24h > 0 ? sum24h : null,
       recent_video_count: count24h,
     };
@@ -318,6 +335,7 @@ async function handle(req: Request) {
       formula_version: FORMULA_VERSION,
       // 응답 표시용 메타 — DB 컬럼 아님 (apply 시 제외)
       _title: c.title,
+      _titleFilter: c.title_filter,
     };
   });
 
@@ -333,7 +351,7 @@ async function handle(req: Request) {
     }
     const dbRows = programRankingRows.map(
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ _title, ...rest }) => rest,
+      ({ _title, _titleFilter, ...rest }) => rest,
     );
     const { error } = await admin
       .from("media_program_daily_rankings")
@@ -371,6 +389,7 @@ async function handle(req: Request) {
     rankings: programRankingRows.map((r) => ({
       rank: r.rank,
       title: r._title,
+      title_filter: r._titleFilter,
       program_id: r.program_id,
       previous_day_view_count: r.previous_day_view_count,
       rank_delta: r.rank_delta,
