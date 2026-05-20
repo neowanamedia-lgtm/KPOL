@@ -45,21 +45,20 @@ function stripBracketPrefix(title: string | null | undefined): string {
 }
 
 /**
- * 구독자 대비 조회수 비율 — (영상당 평균 조회수 ÷ 구독자 수) × 100%.
+ * 구독자 대비 조회수 비율 — (분자 ÷ 분모) × 100%.
+ * 현재 분자 = 최근 24시간 총조회수, 분모 = 구독자 수.
  * 두 값 모두 > 0 일 때만 계산. 최대 1자리 소수.
  */
-function formatAvgPerSubPercent(
-  avgViewsPerVideo: number | null | undefined,
-  subscriber: number | null | undefined,
+function formatRatioPercent(
+  numerator: number | null | undefined,
+  denominator: number | null | undefined,
 ): string | null {
-  if (avgViewsPerVideo == null || !Number.isFinite(avgViewsPerVideo))
+  if (numerator == null || !Number.isFinite(numerator)) return null;
+  if (numerator <= 0) return null;
+  if (denominator == null || !Number.isFinite(denominator) || denominator <= 0)
     return null;
-  if (avgViewsPerVideo <= 0) return null; // > 0 만 표시
-  if (subscriber == null || !Number.isFinite(subscriber) || subscriber <= 0)
-    return null;
-  const pct = (avgViewsPerVideo / subscriber) * 100;
+  const pct = (numerator / denominator) * 100;
   if (!Number.isFinite(pct) || pct <= 0) return null;
-  // 1자리 소수까지, 정수면 ".0" 트림
   return `${pct.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
@@ -180,22 +179,11 @@ export function MediaInfoModal({
   const view24h = program?.daily_ranking?.previous_day_view_count ?? null;
   const view24hLabel = view24h != null ? `${formatViewsKo(view24h)}회` : null;
 
-  // 24h 영상 수 — recent_video_count 가 24h 윈도우 수
-  const recent24hVideoCount =
-    program?.daily_ranking?.recent_video_count ?? null;
-
-  // 영상당 평균 조회수 — UI 노출 ✗. 단 ratio 계산용으로 내부 유지.
-  const avg24h =
-    view24h != null &&
-    recent24hVideoCount != null &&
-    recent24hVideoCount > 0
-      ? view24h / recent24hVideoCount
-      : null;
-
-  // 구독자 대비 조회수 비율 = 영상당 평균(24h) ÷ 구독자 수 × 100 %
+  // 구독자 대비 조회수 비율 = 최근 24시간 총조회수 ÷ 구독자 수 × 100 %
+  //   (영상당 평균 조회수 미사용 — UI/계산 모두 제외)
   const viewSubRatioLabel = subscriberHidden
     ? null
-    : formatAvgPerSubPercent(avg24h, subscriberCount);
+    : formatRatioPercent(view24h, subscriberCount);
 
   // 최근 업로드 영상 — published_at desc 로 정렬, 상위 3건
   const recentVideos = (program?.recent_videos ?? [])
