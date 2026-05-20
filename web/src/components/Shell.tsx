@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PersonRow } from "@/components/PersonRow";
 import { PersonDetail } from "@/components/PersonDetail";
 import { BasisExplainer } from "@/components/BasisExplainer";
+import { MediaPane } from "@/components/MediaPane";
 import { fireEvent, type CategoryTarget } from "@/lib/analytics";
 import {
   MinusIcon,
@@ -273,6 +274,8 @@ export function Shell() {
                 />
               ))}
             </ul>
+          ) : activeTab === "media" ? (
+            <MediaPane />
           ) : (
             <PlaceholderPane label={TABS.find((t) => t.key === activeTab)!.label} />
           )}
