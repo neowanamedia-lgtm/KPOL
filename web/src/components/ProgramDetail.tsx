@@ -9,7 +9,7 @@ import type {
   MediaProgramDailyRanking,
   MediaProgramRecentVideo,
 } from "@/lib/programs";
-import { CloseIcon } from "@/components/icons";
+import { CloseIcon, StarIcon, StarIconFilled } from "@/components/icons";
 import { RankSparkline } from "@/components/RankSparkline";
 
 /**
@@ -29,6 +29,8 @@ import { RankSparkline } from "@/components/RankSparkline";
 
 interface Props {
   program: MediaProgramFull;
+  isInterested: boolean;
+  onToggleInterest: (id: string) => void;
   onClose: () => void;
 }
 
@@ -72,7 +74,13 @@ function RankDeltaInline({ value }: { value: number | null }) {
   return <span className="text-signal-flat tabular-nums">– 0</span>;
 }
 
-export function ProgramDetail({ program, onClose }: Props) {
+export function ProgramDetail({
+  program,
+  isInterested,
+  onToggleInterest,
+  onClose,
+}: Props) {
+  const toggle = () => onToggleInterest(program.id);
   const {
     title,
     broadcaster,
@@ -133,9 +141,30 @@ export function ProgramDetail({ program, onClose }: Props) {
             </div>
           )}
           <div className="flex flex-col gap-1 pb-1 min-w-0">
-            <h1 className="text-fg text-[22px] font-medium leading-tight truncate">
-              {title}
-            </h1>
+            <div className="flex items-center gap-1 min-w-0">
+              <h1
+                className={`text-[22px] font-medium leading-tight truncate ${isInterested ? "text-accent-green" : "text-fg"}`}
+              >
+                {title}
+              </h1>
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label={isInterested ? "관심 해제" : "관심 등록"}
+                aria-pressed={isInterested}
+                className={`w-8 h-8 flex items-center justify-center transition-colors cursor-pointer touch-manipulation shrink-0 ${
+                  isInterested
+                    ? "text-accent-green"
+                    : "text-fg-dim hover:text-fg-muted"
+                }`}
+              >
+                {isInterested ? (
+                  <StarIconFilled className="w-[18px] h-[18px] pointer-events-none" />
+                ) : (
+                  <StarIcon className="w-[18px] h-[18px] pointer-events-none" />
+                )}
+              </button>
+            </div>
             <div className="text-fg-dim kpol-text-list-xs truncate">
               {[broadcaster, channel_name].filter(Boolean).join(" · ") || "—"}
             </div>

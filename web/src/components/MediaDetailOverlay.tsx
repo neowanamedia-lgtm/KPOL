@@ -20,10 +20,19 @@ import { ProgramDetail } from "@/components/ProgramDetail";
 
 interface Props {
   id: string | null;
+  /** 현재 id 의 즐겨찾기 상태 (Shell 의 mediaInterestSet.has(id)). */
+  isInterested: boolean;
+  /** 별 토글 핸들러 — program.id 전달. */
+  onToggleInterest: (id: string) => void;
   onClose: () => void;
 }
 
-export function MediaDetailOverlay({ id, onClose }: Props) {
+export function MediaDetailOverlay({
+  id,
+  isInterested,
+  onToggleInterest,
+  onClose,
+}: Props) {
   const [detail, setDetail] = useState<MediaProgramFull | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +91,14 @@ export function MediaDetailOverlay({ id, onClose }: Props) {
     );
   }
   if (detail) {
-    return <ProgramDetail program={detail} onClose={onClose} />;
+    return (
+      <ProgramDetail
+        program={detail}
+        isInterested={isInterested}
+        onToggleInterest={onToggleInterest}
+        onClose={onClose}
+      />
+    );
   }
   return null;
 }

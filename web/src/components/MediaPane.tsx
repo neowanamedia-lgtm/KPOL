@@ -24,9 +24,11 @@ type ListState =
 
 interface Props {
   onOpen: (id: string) => void;
+  /** 즐겨찾기된 program id 집합 (Shell 관리). 카드 색상 표시용. */
+  interestSet: Set<string>;
 }
 
-export function MediaPane({ onOpen }: Props) {
+export function MediaPane({ onOpen, interestSet }: Props) {
   const [list, setList] = useState<ListState>({ status: "loading" });
 
   const loadList = useCallback(async () => {
@@ -86,6 +88,7 @@ export function MediaPane({ onOpen }: Props) {
           key={p.id}
           rank={i + 1}
           program={p}
+          interested={interestSet.has(p.id)}
           onOpen={onOpen}
         />
       ))}

@@ -62,6 +62,7 @@ const BASIS_BY_TAB: Record<TabKey, string> = {
 const SCALE_KEY = "kpol-scale";
 const THEME_KEY = "kpol-theme";
 const INTERESTS_KEY = "kpol-interests";
+const MEDIA_INTERESTS_KEY = "kpol-media-interests";
 
 function loadInitialScale(): Scale {
   if (typeof window === "undefined") return 0;
@@ -88,6 +89,18 @@ function loadInitialInterests(): string[] {
   }
 }
 
+function loadInitialMediaInterests(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(MEDIA_INTERESTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function Shell() {
   const [activeTab, setActiveTab] = useState<TabKey>("people");
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -99,6 +112,7 @@ export function Shell() {
   const [scale, setScale] = useState<Scale>(0);
   const [theme, setTheme] = useState<Theme>("night");
   const [interests, setInterests] = useState<string[]>([]);
+  const [mediaInterests, setMediaInterests] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -113,6 +127,10 @@ export function Shell() {
   }, []);
 
   const interestSet = useMemo(() => new Set(interests), [interests]);
+  const mediaInterestSet = useMemo(
+    () => new Set(mediaInterests),
+    [mediaInterests],
+  );
   const detailPerson = useMemo(
     () => (detailId ? DEMO_PEOPLE.find((p) => p.id === detailId) ?? null : null),
     [detailId],
@@ -125,6 +143,7 @@ export function Shell() {
     setScale(loadInitialScale());
     setTheme(loadInitialTheme());
     setInterests(loadInitialInterests());
+    setMediaInterests(loadInitialMediaInterests());
   }, []);
 
   // PWA 실행 시 1회 이벤트 (mount 시. is_pwa는 analytics에서 standalone 감지)
@@ -139,6 +158,15 @@ export function Shell() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(INTERESTS_KEY, JSON.stringify(interests));
   }, [interests]);
+
+  // persist media interests (별도 key — UUID 풀, person id 와 분리)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      MEDIA_INTERESTS_KEY,
+      JSON.stringify(mediaInterests),
+    );
+  }, [mediaInterests]);
 
   // sync to <html data-scale> + persist
   useEffect(() => {
@@ -159,6 +187,12 @@ export function Shell() {
 
   const toggleInterest = (id: string) => {
     setInterests((curr) =>
+      curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id],
+    );
+  };
+
+  const toggleMediaInterest = (id: string) => {
+    setMediaInterests((curr) =>
       curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id],
     );
   };
@@ -271,7 +305,10 @@ export function Shell() {
               ))}
             </ul>
           ) : activeTab === "media" ? (
-            <MediaPane onOpen={setMediaProgramId} />
+            <MediaPane
+              onOpen={setMediaProgramId}
+              interestSet={mediaInterestSet}
+            />
           ) : (
             <PlaceholderPane label={TABS.find((t) => t.key === activeTab)!.label} />
           )}
@@ -358,6 +395,10 @@ export function Shell() {
           main 의 stacking context(z-0) 밖에서 fixed z-50 → header/nav 위로 immersive. */}
       <MediaDetailOverlay
         id={activeTab === "media" ? mediaProgramId : null}
+        isInterested={
+          mediaProgramId ? mediaInterestSet.has(mediaProgramId) : false
+        }
+        onToggleInterest={toggleMediaInterest}
         onClose={() => setMediaProgramId(null)}
       />
 

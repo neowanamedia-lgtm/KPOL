@@ -521,6 +521,10 @@ export function ProgramsAdminSection({ adminKey }: { adminKey: string }) {
       {showPreview && detail ? (
         <ProgramDetail
           program={detail}
+          isInterested={false}
+          onToggleInterest={() => {
+            /* admin preview — no-op */
+          }}
           onClose={() => setShowPreview(false)}
         />
       ) : null}

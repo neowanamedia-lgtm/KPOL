@@ -31,6 +31,8 @@ export interface MediaProgramListItem
 interface Props {
   rank: number;
   program: MediaProgramListItem;
+  /** 즐겨찾기 여부 — PersonRow 와 동일 패턴: rank/title accent-green */
+  interested: boolean;
   onOpen: (id: string) => void;
 }
 
@@ -77,9 +79,17 @@ function getBroadcasterLabel(p: MediaProgramListItem): string | null {
   return channel || null;
 }
 
-export function MediaProgramRow({ rank, program, onOpen }: Props) {
+export function MediaProgramRow({
+  rank,
+  program,
+  interested,
+  onOpen,
+}: Props) {
   const broadcasterLabel = getBroadcasterLabel(program);
   const change = typeof program.rank_change === "number" ? program.rank_change : 0;
+  // PersonRow 와 동일 패턴 — rank/title 만 accent-green, 매체명은 dim 유지
+  const rankClass = interested ? "text-accent-green" : "text-fg-dim";
+  const nameClass = interested ? "text-accent-green" : "text-fg";
   return (
     <li className="border-b border-border">
       <div className="kpol-row-pad w-full flex items-center gap-2.5 px-4 leading-tight">
@@ -89,10 +99,14 @@ export function MediaProgramRow({ rank, program, onOpen }: Props) {
           aria-label={`${program.title} 상세 보기`}
           className="flex flex-1 items-baseline gap-2 text-left cursor-pointer touch-manipulation min-w-0 active:opacity-60 transition-opacity"
         >
-          <span className="kpol-text-rank tabular-nums shrink-0 min-w-[2em] text-fg-dim self-center">
+          <span
+            className={`kpol-text-rank tabular-nums shrink-0 min-w-[2em] self-center ${rankClass}`}
+          >
             {formatRank(rank)}
           </span>
-          <span className="kpol-text-name font-medium min-w-0 truncate text-fg">
+          <span
+            className={`kpol-text-name font-medium min-w-0 truncate ${nameClass}`}
+          >
             {program.title}
           </span>
           {broadcasterLabel ? (
